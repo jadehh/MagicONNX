@@ -48,6 +48,9 @@ class OnnxNode():
 
     @property
     def name(self):
+        # TODO: 使用装饰器
+        if self._node.name == '':
+            self._node.name = f'{self._node.op_type}_{self._node.outputs[0]}'
         return self._node.name
 
     @name.setter
@@ -148,6 +151,7 @@ class OnnxNode():
 
     @property
     def outputs(self):
+        # TODO:每个节点都有(输入)输出才对
         if self._node_type in ['Initializer', 'Placeholder']:
             warnings.warn(
                 f'Only NodeProto has output_names, but the current node is {self._node_type}')
