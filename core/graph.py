@@ -1,4 +1,3 @@
-
 import warnings
 from itertools import chain
 
@@ -8,6 +7,10 @@ from onnx import (NodeProto, TensorProto, ValueInfoProto, TensorShapeProto, Attr
 from onnx import (helper, numpy_helper)
 from onnx.mapping import (TENSOR_TYPE_TO_NP_TYPE, NP_TYPE_TO_TENSOR_TYPE)
 
+from skl2onnx.helpers.onnx_helper import (select_model_inputs_outputs,
+                                          enumerate_model_node_outputs,
+                                          save_onnx_model)
+
 from node import OnnxNode
 
 class OnnxGraph():
@@ -15,7 +18,6 @@ class OnnxGraph():
         #TODO:support filename, serialtostring, graphproto
         self._model = onnx.load(model)
         graph = self._model.graph
-        self._graph = graph
         self._all_ops_map = {}
         self.all_edges_map = {}
         #TODO:optimizer
@@ -33,6 +35,7 @@ class OnnxGraph():
     #######              Create             #######
     ###############################################
     def add_placeholder(self, name, dtype, shape):
+        #TODO:这里要使用self.graph.node.add()添加node再copyfrom
         try:
             dtype = np.dtype(dtype)
         except Exception as e:
@@ -63,40 +66,34 @@ class OnnxGraph():
         self._update_ops_map(node.name, node, False)
         return node
 
-    def insert_node(self, anchor: str, target:NodeProto, indices:list, mode='after'):
+    def insert_node(self, anchor, target, index=0, mode='after'):
         src = self._all_ops_map.get(anchor)
         assert src != None, f'There is no node.name={anchor} in graph, please check it by yourself.'
-        
-        if not isinstance(target, NodeProto):
-            raise TypeError(f'Only support NodeProto, maybe you can use graph.add_node(...)')
 
+        dst = OnnxNode(target)
+ 
         if mode == 'after':
-            while target.output:
-                target.output.pop()
-            target.output.MergeFrom(src.output_names)
-            for index in indices:
-                name = target.input[index]
-                target.input[index] = f'{src.name}/{name}'
-                src.output_names[index] = f'{src.name}/{name}'
+            if len(target.input) > 1:
+                raise RuntimeError('Only support single input Node, maybe you can use graph.connection')
+            while dst.output:
+                dst.output.pop()
+            target.output.append(src.output[index])
+            dst.input[0] = f'{src.name}_{dst.name}'
+            src.output[index] = f'{src.name}_{dst.name}'
         elif mode == 'before':
-            while target.input:
-                target.input.pop()
-            target.input.MergeFrom(src.input_names)
-            target.input[1] = 'weight'
-            for index in indices:
-                name = target.output[index]
-                target.output[index] = f'{name}/{src.name}'
-                src.input_names[index] = f'{name}/{src.name}'
+            if len(target.output) > 1:
+                raise RuntimeError('Only support single output Node, maybe you can use graph.connection')
+            while dst.input:
+                dst.input.pop()
+            dst.input.append(src.input[index])
+            dst.output[0] = f'{dst.name}/{src.name}'
+            src.input[index] = f'{dst.name}/{src.name}'
         else:
             raise ValueError(f'Only support mode="after" or mode="before", but got {mode}')
 
-        
-        for idx, node in enumerate(self._graph.node):
-            if node.name == anchor:
-                self._graph.node[idx].CopyFrom(src.node)
-                break
+        #TODO:这里可能要改，应该是insert，而不是append
         self._graph.node.append(target)
-        self._all_ops_map.update({target.name: OnnxNode(target)})
+        self._update_ops_map(dst.name, dst, False)
         return self
 
     ###############################################
@@ -121,7 +118,14 @@ class OnnxGraph():
     def __setitem__(self, key, value):
         # TODO: 仅nodeproto的替换，且要求替换前后的输入输出数量必须一致
         # 对应init和ph的修改不支持，可以先获取node再用node方法修改
-        pass
+        try:
+            node = OnnxNode(value)
+        except Exception as e:
+            print(e)
+            raise RuntimeError(f'{value} is wrong')
+        if not isinstance(value, NodeProto):
+            raise RuntimeError(f'Only support change NodeProto, but {key} is exclude')
+        self._all_ops_map[key] = value
 
     ###############################################
     #######             Delete              #######
@@ -160,13 +164,35 @@ class OnnxGraph():
         return self._graph.output
     
     def save(self, path):
+        onnx.save(self._model, path)
+
+    def run(self, data):
+        model = self._model.Seri()
+        return self._run(model, data)
+
+    def _run(self, model, data):
         pass
 
-    def dump(self, outputs=None):
-        pass
+    def dump(self, data, path='dump', outputs=None):
+        outs = [name for name in enumerate_model_node_outputs(self._model)]
+        new_model = select_model_inputs_outputs(self._model, outs)
+        new_model_byte = new_model.Seri()
+        arrs = self._run(new_model_byte, data)
+        idx = 0
+        for node in self._model.graph.node:
+            for i, output in enumerate(node.output):
+                fname = f'{node.op_type}_{node.name}_output{i}_{round(time.time() * 1000000)}.npy'
+                np.save(os.path.join(path, fname), arrs[idx])
+                idx += 1
 
-    def simpilify(self):
-        pass
+    def simplify(self, inplace, **kwargs):
+        model_sim, check = simplify(self._model, **kwargs)
+        assert check, "Simplified ONNX model could not be validated"
+        if inplace:
+            self._model = model_sim
+            return self
+        else:
+            return model_sim 
 
     ###############################################
     #######       assistant operation       #######
