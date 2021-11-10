@@ -98,7 +98,6 @@ class OnnxGraph():
         else:
             raise ValueError(f'Only support mode="after" or mode="before", but got {mode}')
 
-        # self._update_ops_map(dst.name, dst, False)
         return self
 
     ###############################################
@@ -213,7 +212,7 @@ class OnnxGraph():
                 np.save(os.path.join(path, fname), arrs[idx])
                 idx += 1
 
-    def simplify(self, inplace, kwargs):
+    def simplify(self, inplace, kwargs={}):
         model_sim, check = simplify(self._model, **kwargs)
         assert check, "Simplified ONNX model could not be validated"
         if inplace:
@@ -278,5 +277,9 @@ if __name__ == '__main__':
     print(graph.outputs)
     # graph.connection('Cast_2', [0], 'Add_6', [1])
     # graph.save('case5.onnx')
-    data = np.randn(20, 5, 10, 10)
+    data = np.randn(20, 5, 10, 10).astype(np.float32)
+    graph.dump([data])
     ret = graph.run([data])
+    for output in ret:
+        print(output.shape)
+    graph.simplify(True).save('case6.onnx')
