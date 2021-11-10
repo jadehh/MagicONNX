@@ -2,8 +2,8 @@
 import onnx
 from onnx import (helper, TensorProto)
 from onnx.onnx_ml_pb2 import ModelProto
-from core import OnnxModel
-import unittest
+from core import OnnxGraph
+from copy import deepcopy
 
 def create_graph():
     # create graph according to layernorm
@@ -84,19 +84,70 @@ def create_graph():
     return graph
 
 
-def print_message(model):
-    message = (f'model.ir_version = {model.ir_version}\n'
-               f'model.opset_import = {model.opset_import}\n'
-               f'model.producer_name = {model.producer_name}\n'
-               f'model.producer_version = {model.producer_version}\n'
-               f'model.domain = {model.domain}\n'
-               f'model.model_version = {model.model_version}\n'
-               f'model.graph = {model.graph}\n')
-    print(message)
+def create(graph):
+    ph = graph.add_placeholder('dummy_input', 'int32', [2, 3, 4])
+    init = graph.add_initializer('dummy_init', np.array([[2, 3, 4]]))
+    add = graph.add_node('dummy_add', 'Add')
+    add.inputs = ['dummy_input', 'dummy_init']
+    add.outputs = ['add_out']
+    graph.save('case1.onnx')
+    argmax = graph.add_node('dummy_ArgMax',
+                          'ArgMax',
+                          {'axis': 0, 'keepdims': 1, 'select_last_index': 0})
+    graph.insert_node('dummy_add', argmax, mode='before')
+    graph.save('case2.onnx')
 
+def retrieve(graph):
+    adds = graph.get_nodes("Add")
+    for add in adds:
+        print(f'add.name = {add.name}')
+    inits = graph.get_nodes("Initializer")
+    phs = graph.get_nodes("Placeholder")
+    add_6 = graph['Add_6']
+    print(f'add_6.inputs = {add_6.inputs}')
+
+def update(graph):
+    argmax = graph.add_node('dummy_ArgMax',
+                      'ArgMax',
+                      {'axis': 0, 'keepdims': 1, 'select_last_index': 0})
+    graph['Cast_2'] = argmax
+    graph.save('case3.onnx')
+
+def delete(graph):
+    graph.del_node('Cast_2')
+    graph.save('case4.onnx')
+
+def test_connection(graph):
+    graph.connection('Cast_2', [0], 'Add_6', [1])
+    graph.save('case5.onnx')
+
+def test_run_dump(graph, data):
+    graph.dump([data])
+    ret = graph.run([data])
+    for output in ret:
+        print(output.shape)
 
 if __name__ == '__main__':
-    graph = create_graph()
-    # model = OnnxModel('./test_resize.onnx')
+    # graph = create_graph()
+    graph = OnnxGraph('layernorm.onnx')
 
-    # print_message(model)
+    # test for create
+    create(deepcopy(graph))
+    # test for Retrieve
+    retrieve(deepcopy(graph))
+    # test for Update
+    update(deepcopy(graph))
+    # test for Delete
+    delete(deepcopy(graph))
+
+    # test for graph operation
+    print(graph)
+    print(graph.inputs)
+    print(graph.outputs)
+    print(graph.graph)
+    test_connection(deepcopy(graph))
+
+    data = np.randn(20, 5, 10, 10).astype(np.float32)
+    test_run_dump(deepcopy(graph), data)
+
+    graph.simplify(True).save('case6.onnx')
