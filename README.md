@@ -1,25 +1,96 @@
 # MagicONNX
-- [OnnxNode操作](#OnnxNode操作)
-    - [概念定义](#概念定义)
-    - [公共API](#公共API)
-    - [PlaceHolder专属API](#PlaceHolder专属API)
-    - [Initializer专属API](#Initializer专属API)
-    - [NodeProto专属API](#NodeProto专属API)
+- [MagicONNX](#magiconnx)
+  - [概念定义](#概念定义)
+    - [PlaceHolder定义](#placeholder定义)
+    - [Initializer定义](#initializer定义)
+    - [NodeProto定义](#nodeproto定义)
+  - [OnnxGraph操作](#onnxgraph操作)
+    - [增加node](#增加node)
+    - [查找node](#查找node)
+    - [删除node](#删除node)
+    - [修改node](#修改node)
+    - [其他graph操作](#其他graph操作)
+  - [OnnxNode操作](#onnxnode操作)
+    - [公共API](#公共api)
+    - [PlaceHolder专属API](#placeholder专属api)
+    - [Initializer专属API](#initializer专属api)
+    - [NodeProto专属API](#nodeproto专属api)
 
+## [概念定义](#概念定义)
+### [PlaceHolder定义](#PlaceHolder定义)
+- 本质上是[onnx.proto3](https://github.com/onnx/onnx/blob/master/onnx/onnx.proto3)中的 **`ValueInfoProto`**；
+- 表示**整网中输入节点类型**；
+- 包含属性有 **`name`**, **`shape`**, **`dtype`**。
+### [Initializer定义](#Initializer定义)
+- 本质上是[onnx.proto3](https://github.com/onnx/onnx/blob/master/onnx/onnx.proto3)中的 **`TensorProto`**；
+- 表示**整网中常量节点类型**；
+- 包含属性有 **`name`**, **`value`**。
+### [NodeProto定义](#NodeProto定义)
+- 本质上是[onnx.proto3](https://github.com/onnx/onnx/blob/master/onnx/onnx.proto3)中的 **`NodeProto`**；
+- 表示**整网中计算节点类型**；
+- 包含属性有 **`name`**, **`inputs`**， **`outputs`**, **`attrs`**。
+
+## [OnnxGraph操作](#OnnxGraph操作)
+```python
+graph = OnnxGraph('layernorm.onnx')
+```
+### [增加node](#增加node)
+```python
+# test for create
+ph = graph.add_placeholder('dummy_input', 'int32', [2, 3, 4])
+init = graph.add_initializer('dummy_init', np.array([[2, 3, 4]]))
+add = graph.add_node('dummy_add', 'Add')      # add_node默认单输入单输出，需要手动修改节点输入输出信息
+add.inputs = ['dummy_input', 'dummy_init']
+add.outputs = ['add_out']
+graph.save('case1.onnx')
+
+argmax = graph.add_node('dummy_ArgMax',
+                      'ArgMax',
+                      {'axis': 0, 'keepdims': 1, 'select_last_index': 0})
+graph.insert_node('dummy_add', argmax, mode='before')
+graph.save('case2.onnx')
+```
+### [查找node](#查找node)
+```python
+# test for Retrieve
+adds = graph.get_nodes("Add")             # 获得整网中所有Add节点
+inits = graph.get_nodes("Initializer")    # 获得整网中所有常量节点
+phs = graph.get_nodes("Placeholder")
+add_6 = graph['Add_6']                    # 获得Add_6单个节点
+```
+### [删除node](#删除node)
+```python
+# test for Delete
+graph.del_node('Cast_2')                  # 删除Cast_2节点，仅支持单输入单输出节点
+graph.save('case4.onnx')
+```
+### [修改node](#修改node)
+```python
+# test for Update
+argmax = graph.add_node('dummy_ArgMax',
+                  'ArgMax',
+                  {'axis': 0, 'keepdims': 1, 'select_last_index': 0})
+graph['Cast_2'] = argmax
+graph.save('case3.onnx')
+```
+### [其他graph操作](#其他graph操作)
+```python
+# test for graph operation
+print(graph)
+print(graph.inputs)
+print(graph.outputs)
+print(graph.graph)
+# graph.connection('Cast_2', [0], 'Add_6', [1])
+# graph.save('case5.onnx')
+data = np.randn(20, 5, 10, 10).astype(np.float32)
+graph.dump([data])
+ret = graph.run([data])
+for output in ret:
+    print(output.shape)
+graph.simplify(True).save('case6.onnx')
+```
 ## [OnnxNode操作](#OnnxNode操作)
-### [概念定义](#概念定义)
-- PlaceHolder定义
-  - 本质上是[onnx.proto3](https://github.com/onnx/onnx/blob/master/onnx/onnx.proto3)中的 **`ValueInfoProto`**；
-  - 表示整网中输入输出节点类型；
-  - 包含属性有 **`name`**, **`shape`**, **`dtype`**。
-- Initializer定义
-  - 本质上是[onnx.proto3](https://github.com/onnx/onnx/blob/master/onnx/onnx.proto3)中的 **`TensorProto`**；
-  - 表示整网中常量节点类型；
-  - 包含属性有 **`name`**, **`value`**。
-- NodeProto定义
-  - 本质上是[onnx.proto3](https://github.com/onnx/onnx/blob/master/onnx/onnx.proto3)中的 **`NodeProto`**；
-  - 表示整网中计算节点类型；
-  - 包含属性有 **`name`**, **`inputs`**， **`outputs`**, **`attrs`**。
+
 ### [公共API](#公共API)
 对一个 **`OnnxNode`** 对象而言，公共API包含 **`name`**, **`print`**， **`node`**, **`op_type`**, **`doc_string`**。
 ```python

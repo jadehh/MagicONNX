@@ -106,10 +106,6 @@ class OnnxGraph():
     def get_nodes(self, op_type):
         return {node for node in self._all_ops_map.values() if node.op_type == op_type}
 
-    @property
-    def graph(self):
-        return self._model.graph
-
     def __getitem__(self, key):
         ret = self._all_ops_map.get(key)
         if ret is None:
@@ -177,6 +173,10 @@ class OnnxGraph():
 
     def __str__(self):
         return helper.printable_graph(self._model.graph)
+
+    @property
+    def graph(self):
+        return self._model.graph
 
     @property
     def inputs(self):
@@ -258,7 +258,7 @@ if __name__ == '__main__':
     # inits = graph.get_nodes("Initializer")
     # phs = graph.get_nodes("Placeholder")
     # add_6 = graph['Add_6']
-    # print(graph.graph)
+
 
     # test for Update
     # argmax = graph.add_node('dummy_ArgMax',
@@ -275,6 +275,7 @@ if __name__ == '__main__':
     print(graph)
     print(graph.inputs)
     print(graph.outputs)
+    print(graph.graph)
     # graph.connection('Cast_2', [0], 'Add_6', [1])
     # graph.save('case5.onnx')
     data = np.randn(20, 5, 10, 10).astype(np.float32)
