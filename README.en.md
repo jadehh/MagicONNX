@@ -1,20 +1,19 @@
-# MagicONNX
-- [MagicONNX](#magiconnx)
-  - [概念定义](#概念定义)
-    - [PlaceHolder定义](#placeholder定义)
-    - [Initializer定义](#initializer定义)
-    - [NodeProto定义](#nodeproto定义)
-  - [OnnxGraph操作](#onnxgraph操作)
-    - [增加node](#增加node)
-    - [查找node](#查找node)
-    - [删除node](#删除node)
-    - [修改node](#修改node)
-    - [其他graph操作](#其他graph操作)
-  - [OnnxNode操作](#onnxnode操作)
-    - [公共API](#公共api)
-    - [PlaceHolder专属API](#placeholder专属api)
-    - [Initializer专属API](#initializer专属api)
-    - [NodeProto专属API](#nodeproto专属api)
+![logo](./image/logo.png)
+- [概念定义](#概念定义)
+  - [PlaceHolder定义](#placeholder定义)
+  - [Initializer定义](#initializer定义)
+  - [NodeProto定义](#nodeproto定义)
+- [OnnxGraph操作](#onnxgraph操作)
+  - [增加node](#增加node)
+  - [查找node](#查找node)
+  - [删除node](#删除node)
+  - [修改node](#修改node)
+  - [其他graph操作](#其他graph操作)
+- [OnnxNode操作](#onnxnode操作)
+  - [公共API](#公共api)
+  - [PlaceHolder专属API](#placeholder专属api)
+  - [Initializer专属API](#initializer专属api)
+  - [NodeProto专属API](#nodeproto专属api)
 
 ## [概念定义](#概念定义)
 ### [PlaceHolder定义](#PlaceHolder定义)
@@ -31,11 +30,11 @@
 - 包含属性有 **`name`**, **`inputs`**， **`outputs`**, **`attrs`**。
 
 ## [OnnxGraph操作](#OnnxGraph操作)
+### [增加node](#增加node)
+![动画演示](./image/create.gif)
 ```python
 graph = OnnxGraph('layernorm.onnx')
-```
-### [增加node](#增加node)
-```python
+
 # test for create
 ph = graph.add_placeholder('dummy_input', 'int32', [2, 3, 4])
 init = graph.add_initializer('dummy_init', np.array([[2, 3, 4]]))

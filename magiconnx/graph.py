@@ -1,17 +1,14 @@
 import time
 import os
-import warnings
 from itertools import chain
 
 import numpy as np
 import onnx
-from onnx import (NodeProto, TensorProto, ValueInfoProto, TensorShapeProto, AttributeProto)
-from onnx import (helper, numpy_helper)
-from onnx.mapping import (TENSOR_TYPE_TO_NP_TYPE, NP_TYPE_TO_TENSOR_TYPE)
+from onnx import helper
+from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 
 from skl2onnx.helpers.onnx_helper import (select_model_inputs_outputs,
-                                          enumerate_model_node_outputs,
-                                          save_onnx_model)
+                                          enumerate_model_node_outputs)
 import onnxruntime as rt
 from onnxsim import simplify
 from node import OnnxNode
@@ -41,7 +38,7 @@ class OnnxGraph():
     #######              Create             #######
     ###############################################
     def add_placeholder(self, name, dtype, shape):
-        #TODO:这里要使用self.graph.node.add()添加node再copyfrom
+        #TODO:dtype支持字符串和np.dtype
         try:
             dtype = np.dtype(dtype)
         except Exception as e:
@@ -65,6 +62,7 @@ class OnnxGraph():
         return init
 
     def add_node(self, name, op_type, attrs={}):
+        #TODO:attrs变成关键字参数
         node = self._model.graph.node.add()
         node.CopyFrom(helper.make_node(op_type = op_type,
                                     inputs = ['Null'],
@@ -135,6 +133,7 @@ class OnnxGraph():
     #######             Delete              #######
     ###############################################
     def del_node(self, name, maps=None, auto_connection=True):
+        # TODO: 目前仅支持删除单输入单输出结点，增强maps和auto_connection支持其他场景
         src = self._all_ops_map.pop(name)
         if len(src.inputs) != 1 and len(src.outputs) != 1:
             raise RuntimeError('fuzz action')
@@ -156,6 +155,7 @@ class OnnxGraph():
     #######         graph operation         #######
     ###############################################
     def connection(self, previous, out_idx, behind, in_idx):
+        # TODO: idx支持int/list/tuple
         if previous not in self._all_ops_map or behind not in self._all_ops_map:
             raise ValueError(f'{previous} or {behind} not in graph')
         prev = self._all_ops_map[previous]
@@ -201,6 +201,7 @@ class OnnxGraph():
         return ret
 
     def dump(self, data, path='dump', outputs=None):
+        # TODO：outputs还未实现
         outs = [name for name in enumerate_model_node_outputs(self._model)]
         new_model = select_model_inputs_outputs(self._model, outs)
         new_model_byte = new_model.SerializeToString()
@@ -213,6 +214,7 @@ class OnnxGraph():
                 idx += 1
 
     def simplify(self, inplace, kwargs={}):
+        #TODO:关键字参数
         model_sim, check = simplify(self._model, **kwargs)
         assert check, "Simplified ONNX model could not be validated"
         if inplace:

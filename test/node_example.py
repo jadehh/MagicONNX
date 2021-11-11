@@ -3,7 +3,7 @@ import onnx
 from onnx import helper
 import sys
 sys.path.append('..')
-from core import OnnxNode
+from magiconnx import OnnxNode
 
 
 def create_all_nodes():

@@ -2,8 +2,11 @@
 import onnx
 from onnx import (helper, TensorProto)
 from onnx.onnx_ml_pb2 import ModelProto
-from core import OnnxGraph
+import sys
+sys.path.append('..')
+from magiconnx import OnnxGraph
 from copy import deepcopy
+import numpy as np
 
 def create_graph():
     # create graph according to layernorm

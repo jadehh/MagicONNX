@@ -1,7 +1,5 @@
 import warnings
 import numpy as np
-import onnx
-
 from onnx import (NodeProto, TensorProto, ValueInfoProto, TensorShapeProto, AttributeProto)
 from onnx import (helper, numpy_helper)
 from onnx.mapping import (TENSOR_TYPE_TO_NP_TYPE, NP_TYPE_TO_TENSOR_TYPE)
