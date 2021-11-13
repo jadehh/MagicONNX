@@ -5,16 +5,18 @@ from itertools import chain
 import numpy as np
 import onnx
 from onnx import helper
+from onnx.onnx_ml_pb2 import GraphProto
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 
 from skl2onnx.helpers.onnx_helper import (select_model_inputs_outputs,
                                           enumerate_model_node_outputs)
 import onnxruntime as rt
 from onnxsim import simplify
-from node import OnnxNode
-
+from .node import OnnxNode
+from .utils import typeassert
 
 class OnnxGraph():
+    @typeassert(model=str)
     def __init__(self, model):
         #TODO:support filename, serialtostring, graphproto
         self._model = onnx.load(model)
@@ -37,8 +39,8 @@ class OnnxGraph():
     ###############################################
     #######              Create             #######
     ###############################################
+    @typeassert(name=str, shape=(tuple, list))
     def add_placeholder(self, name, dtype, shape):
-        #TODO:dtype支持字符串和np.dtype
         try:
             dtype = np.dtype(dtype)
         except Exception as e:
@@ -51,6 +53,7 @@ class OnnxGraph():
         self._update_ops_map(ph.name, ph, False)
         return ph
 
+    @typeassert(name=str, value=np.ndarray)
     def add_initializer(self, name, value):
         node = self._model.graph.initializer.add()
         node.CopyFrom(helper.make_tensor(name,
@@ -61,8 +64,8 @@ class OnnxGraph():
         self._update_ops_map(init.name, init, False)
         return init
 
-    def add_node(self, name, op_type, attrs={}):
-        #TODO:attrs变成关键字参数
+    @typeassert(name=str, op_type=str, attrs=dict)
+    def add_node(self, name, op_type, attrs=dict()):
         node = self._model.graph.node.add()
         node.CopyFrom(helper.make_node(op_type = op_type,
                                     inputs = ['Null'],
@@ -73,6 +76,7 @@ class OnnxGraph():
         self._update_ops_map(node.name, node, False)
         return node
 
+    @typeassert(anchor=str, dst=OnnxNode, index=int, mode=str)
     def insert_node(self, anchor, dst, index=0, mode='after'):
         src = self._all_ops_map.get(anchor)
         assert src != None, f'There is no node.name={anchor} in graph, please check it by yourself.'
@@ -94,13 +98,14 @@ class OnnxGraph():
             dst.outputs[0] = f'{dst.name}/{src.name}'
             src.inputs[index] = f'{dst.name}/{src.name}'
         else:
-            raise ValueError(f'Only support mode="after" or mode="before", but got {mode}')
+            raise ValueError(f'Only support mode in ("after", "before"), but got {mode}')
 
         return self
 
     ###############################################
     #######            Retrieve             #######
     ###############################################
+    @typeassert(op_type=str)
     def get_nodes(self, op_type):
         return {node for node in self._all_ops_map.values() if node.op_type == op_type}
 
@@ -132,16 +137,16 @@ class OnnxGraph():
     ###############################################
     #######             Delete              #######
     ###############################################
-    def del_node(self, name, maps=None, auto_connection=True):
-        # TODO: 目前仅支持删除单输入单输出结点，增强maps和auto_connection支持其他场景
+    @typeassert(name=str, maps=dict, auto_connection=bool)
+    def del_node(self, name, maps={0: 0}, auto_connection=True):
         src = self._all_ops_map.pop(name)
-        if len(src.inputs) != 1 and len(src.outputs) != 1:
-            raise RuntimeError('fuzz action')
-        appendix = self._all_ops_map[self.all_edges_map[name][0]]
-        for idx, in_name in enumerate(appendix.inputs):
-            if in_name == src.outputs[0]:
-                break
-        appendix.set_input(idx, src.inputs[0])
+        if not auto_connection:
+            return
+
+        for appendix_name in self.all_edges_map[name]:
+            appendix = self._all_ops_map[appendix_name]
+            for src_idx, dst_idx in maps.items():
+                appendix.set_input(dst_idx, src.inputs[src_idx])
         self._del_node(src)
 
     def _del_node(self, node):
@@ -154,12 +159,16 @@ class OnnxGraph():
     ###############################################
     #######         graph operation         #######
     ###############################################
+    @typeassert(previous=str, out_idx=(int, list, tuple), behind=str, in_idx=(int, list, tuple))
     def connection(self, previous, out_idx, behind, in_idx):
-        # TODO: idx支持int/list/tuple
         if previous not in self._all_ops_map or behind not in self._all_ops_map:
-            raise ValueError(f'{previous} or {behind} not in graph')
+            raise ValueError(f'{previous} or {behind} is not in graph')
         prev = self._all_ops_map[previous]
         beh = self._all_ops_map[behind]
+        if isinstance(out_idx, int):
+            out_idx = [out_idx]
+        if isinstance(in_idx, int):
+            in_idx = [in_idx]
         out_len, in_len = len(out_idx), len(in_idx)
         if (0 in (out_len, in_len)) or \
             ((out_len != in_len) and (1 not in (out_len, in_len))):
@@ -185,36 +194,41 @@ class OnnxGraph():
     @property
     def outputs(self):
         return [out.name for out in self._model.graph.output]
-    
+
     def save(self, path):
         onnx.save(self._model, path)
 
+    @typeassert(data=(np.ndarray, list))
     def run(self, data):
         model = self._model.SerializeToString()
         return self._run(model, data)
 
     def _run(self, model, datas):
+        if isinstance(datas, np.ndarray):
+            datas = [datas]
         sess = rt.InferenceSession(model)
         inputs = [inode.name for inode in sess.get_inputs()]
         outputs = [out.name for out in sess.get_outputs()]
         ret = sess.run(outputs, {name: data for name, data in zip(inputs, datas)})
         return ret
 
-    def dump(self, data, path='dump', outputs=None):
-        # TODO：outputs还未实现
-        outs = [name for name in enumerate_model_node_outputs(self._model)]
-        new_model = select_model_inputs_outputs(self._model, outs)
+    @typeassert(data=(np.ndarray, list), path=str, outputs=(tuple, list))
+    def dump(self, data, path='dump', outputs=[]):
+        if len(outputs) == 0:
+            outputs = [name for name in enumerate_model_node_outputs(self._model)]
+        new_model = select_model_inputs_outputs(self._model, outputs)
         new_model_byte = new_model.SerializeToString()
         arrs = self._run(new_model_byte, data)
         idx = 0
+        if not os.path.exists(path):
+            os.makedirs(path, mode=0o700)
         for node in self._model.graph.node:
             for i, output in enumerate(node.output):
-                fname = f'{node.op_type}_{node.name}_output{i}_{round(time.time() * 1000000)}.npy'
+                fname = f'{node.op_type}_{node.name}_output{i}({output})_{round(time.time() * 1000000)}.npy'
                 np.save(os.path.join(path, fname), arrs[idx])
                 idx += 1
 
-    def simplify(self, inplace, kwargs={}):
-        #TODO:关键字参数
+    def simplify(self, inplace, **kwargs):
         model_sim, check = simplify(self._model, **kwargs)
         assert check, "Simplified ONNX model could not be validated"
         if inplace:

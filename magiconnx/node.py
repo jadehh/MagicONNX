@@ -1,14 +1,14 @@
 import warnings
 import numpy as np
-from onnx import (NodeProto, TensorProto, ValueInfoProto, TensorShapeProto, AttributeProto)
+from onnx.onnx_ml_pb2 import (NodeProto, TensorProto, ValueInfoProto, TensorShapeProto, AttributeProto)
 from onnx import (helper, numpy_helper)
 from onnx.mapping import (TENSOR_TYPE_TO_NP_TYPE, NP_TYPE_TO_TENSOR_TYPE)
 
+from .utils import typeassert
+
 class OnnxNode():
+    @typeassert(node=(NodeProto, TensorProto, ValueInfoProto))
     def __init__(self, node):
-        if not isinstance(node, (NodeProto, TensorProto, ValueInfoProto)):
-            raise TypeError(
-                f'Only NodeProto, TensorProto and ValueInfoProto are legal, but got {type(node)}')
         self._node = node
         if isinstance(node, NodeProto):
             self._node_type = node.op_type
@@ -52,6 +52,7 @@ class OnnxNode():
         return self._node.name
 
     @name.setter
+    @typeassert(name=str)
     def name(self, name):
         self._node.name = name
 
@@ -60,6 +61,7 @@ class OnnxNode():
         return self._node.doc_string
 
     @doc_string.setter
+    @typeassert(doc_string=str)
     def doc_string(self, doc_string):
         self._node.doc_string = doc_string
 
@@ -89,6 +91,7 @@ class OnnxNode():
         return f'[{", ".join(shapes)}]'
 
     @shape.setter
+    @typeassert(shapes=(tuple, list))
     def shape(self, shapes):
         dims = self._node.type.tensor_type.shape
         if len(dims.dim) != len(shapes):
@@ -115,6 +118,7 @@ class OnnxNode():
         return numpy_helper.to_array(self._node)
 
     @value.setter
+    @typeassert(value=np.ndarray)
     def value(self, value):
         if self._node_type != 'Initializer':
             raise RuntimeError(
@@ -141,6 +145,7 @@ class OnnxNode():
             self._node.input.pop()
         self._node.input.extend(value)
 
+    @typeassert(idx=int, name=str)
     def set_input(self, idx, name):
         if self._node_type in ['Initializer', 'Placeholder']:
             warnings.warn(
@@ -165,6 +170,7 @@ class OnnxNode():
             self._node.output.pop()
         self._node.output.extend(value)
 
+    @typeassert(idx=int, name=str)
     def set_output(self, idx, name):
         if self._node_type in ['Initializer', 'Placeholder']:
             warnings.warn(

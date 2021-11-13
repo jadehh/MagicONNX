@@ -2,8 +2,6 @@
 import onnx
 from onnx import (helper, TensorProto)
 from onnx.onnx_ml_pb2 import ModelProto
-import sys
-sys.path.append('..')
 from magiconnx import OnnxGraph
 from copy import deepcopy
 import numpy as np
@@ -150,7 +148,7 @@ if __name__ == '__main__':
     print(graph.graph)
     test_connection(deepcopy(graph))
 
-    data = np.randn(20, 5, 10, 10).astype(np.float32)
+    data = np.random.randn(20, 5, 10, 10).astype(np.float32)
     test_run_dump(deepcopy(graph), data)
 
     graph.simplify(True).save('case6.onnx')
