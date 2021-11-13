@@ -1,8 +1,6 @@
 import numpy as np
 import onnx
 from onnx import helper
-import sys
-sys.path.append('..')
 from magiconnx import OnnxNode
 
 

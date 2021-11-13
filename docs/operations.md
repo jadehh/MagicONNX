@@ -47,8 +47,6 @@
 ### [删除node](#删除node)
 - **del_node(name, maps=None, auto_connection=True)**
   删除 `graph` 中特定 `name` 结点
-  > <big> warning </big>:
-  > - 目前仅支持删除单输入单输出结点，还不支持maps和auto_connection参数
   - **`name`(string)**: `OnnxNode` 的 `name`
   - **`maps`(dict)**: 删除 `name` 后，使其前继结点的第 `x` 条输出与其后继结点的第 `y` 条输入相连
   - **`auto_connection`(bool)**: 是否自动连接输入输出边
@@ -87,10 +85,8 @@
   以 `data` 作为ONNX模型输入，运行该模型并返回结果
   - **`data`(list of np.ndarray)**: 输入数据
 
-- **dump(data, path='dump', outputs=None)**
+- **dump(data, path='dump', outputs=[])**
   以 `data` 作为ONNX模型输入，运行该模型并把所有结点或 `outputs` 的输出值序列化成 `.npy` 文件
-  > <big> warning </big>:
-  > - `outputs` 暂不支持
   - **`data`(list of np.ndarray)**: 输入数据
   - **`path`(string)**: `.npy` 保存路径
   - **`outputs`(list of string)**: 指定保存特定结点的输出值，缺省保存所有结点输出值

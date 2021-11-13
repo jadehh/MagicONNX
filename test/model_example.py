@@ -85,7 +85,8 @@ def create_graph():
     return graph
 
 
-def create(graph):
+def create(path):
+    graph = OnnxGraph(path)
     ph = graph.add_placeholder('dummy_input', 'int32', [2, 3, 4])
     init = graph.add_initializer('dummy_init', np.array([[2, 3, 4]]))
     add = graph.add_node('dummy_add', 'Add')
@@ -98,7 +99,8 @@ def create(graph):
     graph.insert_node('dummy_add', argmax, mode='before')
     graph.save('case2.onnx')
 
-def retrieve(graph):
+def retrieve(path):
+    graph = OnnxGraph(path)
     adds = graph.get_nodes("Add")
     for add in adds:
         print(f'add.name = {add.name}')
@@ -107,22 +109,26 @@ def retrieve(graph):
     add_6 = graph['Add_6']
     print(f'add_6.inputs = {add_6.inputs}')
 
-def update(graph):
+def update(path):
+    graph = OnnxGraph(path)
     argmax = graph.add_node('dummy_ArgMax',
                       'ArgMax',
                       {'axis': 0, 'keepdims': 1, 'select_last_index': 0})
     graph['Cast_2'] = argmax
     graph.save('case3.onnx')
 
-def delete(graph):
+def delete(path):
+    graph = OnnxGraph(path)
     graph.del_node('Cast_2')
     graph.save('case4.onnx')
 
-def test_connection(graph):
-    graph.connection('Cast_2', [0], 'Add_6', [1])
+def test_connection(path):
+    graph = OnnxGraph(path)
+    graph.connection('Div_8', 0, 'Add_10', 1)
     graph.save('case5.onnx')
 
-def test_run_dump(graph, data):
+def test_run_dump(path, data):
+    graph = OnnxGraph(path)
     graph.dump([data])
     ret = graph.run([data])
     for output in ret:
@@ -130,25 +136,25 @@ def test_run_dump(graph, data):
 
 if __name__ == '__main__':
     # graph = create_graph()
-    graph = OnnxGraph('layernorm.onnx')
 
     # test for create
-    create(deepcopy(graph))
+    create('layernorm.onnx')
     # test for Retrieve
-    retrieve(deepcopy(graph))
+    retrieve('layernorm.onnx')
     # test for Update
-    update(deepcopy(graph))
+    update('layernorm.onnx')
     # test for Delete
-    delete(deepcopy(graph))
+    delete('layernorm.onnx')
 
     # test for graph operation
+    test_connection('layernorm.onnx')
+    graph = OnnxGraph('layernorm.onnx')
     print(graph)
     print(graph.inputs)
     print(graph.outputs)
     print(graph.graph)
-    test_connection(deepcopy(graph))
 
     data = np.random.randn(20, 5, 10, 10).astype(np.float32)
-    test_run_dump(deepcopy(graph), data)
+    test_run_dump('layernorm.onnx', data)
 
     graph.simplify(True).save('case6.onnx')
