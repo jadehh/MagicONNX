@@ -107,7 +107,13 @@ class OnnxGraph():
     ###############################################
     @typeassert(op_type=str)
     def get_nodes(self, op_type):
-        return {node for node in self._all_ops_map.values() if node.op_type == op_type}
+        ret = []
+        seen = set()
+        for node in self._all_ops_map.values():
+            if node.name not in seen and node.op_type == op_type:
+                ret.append(node)
+                seen.add(node.name)
+        return ret
 
     def __getitem__(self, key):
         ret = self._all_ops_map.get(key)
