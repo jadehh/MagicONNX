@@ -112,18 +112,25 @@ class OnnxNode():
     @property
     def value(self):
         """Convert TensorProto to numpy array."""
-        if self._node_type != 'Initializer':
+        if self._node_type not in ['Initializer', 'Constant']:
             raise RuntimeError(
-                f'Only support Initializer, but the current node({self.name}) is {self._node_type}')
-        return numpy_helper.to_array(self._node)
+                f'Only support Initializer/Constant, but the current node({self.name}) is {self._node_type}')
+        if self._node_type == 'Initializer':
+            ret = numpy_helper.to_array(self._node)
+        else:
+            ret = numpy_helper.to_array(self._node.attribute[0].t)
+        return ret
 
     @value.setter
     @typeassert(value=np.ndarray)
     def value(self, value):
-        if self._node_type != 'Initializer':
+        if self._node_type not in ['Initializer', 'Constant']:
             raise RuntimeError(
-                f'Only support Initializer, but the current node({self.name}) is {self._node_type}')
-        self._node.CopyFrom(numpy_helper.from_array(value, self.name))
+                f'Only support Initializer/Constant, but the current node({self.name}) is {self._node_type}')
+        if self._node_type == 'Initializer':
+            self._node.CopyFrom(numpy_helper.from_array(value, self.name))
+        else:
+            self._node.attribute[0].t.CopyFrom(numpy_helper.from_array(value))
 
     ##############################################
     #######       NodeProto property       #######
