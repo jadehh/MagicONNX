@@ -31,8 +31,7 @@ class OnnxGraph():
             if node.op_type in ['Initializer', 'Placeholder']:
                 continue
             for out in node.outputs:
-                if out not in out_names:
-                    self._update_ops_map(out, node, False)
+                self._update_ops_map(out, node, False)
         for node in graph.node:
             node = OnnxNode(node)
             self._update_edges_map(node, False)
