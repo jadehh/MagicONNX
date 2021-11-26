@@ -146,6 +146,7 @@ class OnnxGraph():
     def del_node(self, name, maps={0: 0}, auto_connection=True):
         src = self._all_ops_map.pop(name)
         if not auto_connection:
+            self._del_node(src)
             return
 
         for appendix_name in self.all_edges_map[name]:
