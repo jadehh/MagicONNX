@@ -191,7 +191,7 @@ class OnnxNode():
     def __getitem__(self, key):
         if key not in self._attr_map:
             raise KeyError(f'{self.name} do not have {key} attribute')
-        return self._attr_map[key]
+        return helper.get_attribute_value(self._attr_map[key])
  
     def __setitem__(self, key, value):
         if key not in self._attr_map:
@@ -216,5 +216,5 @@ class OnnxNode():
         self._node.domain = domain
 
     def _parse_attrs(self):
-        return {attr.name: helper.get_attribute_value(attr)
+        return {attr.name: attr
                 for attr in self._node.attribute}
