@@ -244,7 +244,8 @@ class OnnxGraph():
         else:
             return model_sim 
 
-    def extract(self, input_tensor_name_list, output_tensor_name_list, new_model_save_path, enable_model_check=True):
+    @typeassert(new_model_save_path=str, input_tensor_name_list=list, output_tensor_name_list=list, enable_model_check=bool)
+    def extract(self, new_model_save_path, input_tensor_name_list, output_tensor_name_list, enable_model_check=True):
         def check_model(model):
             pass
         if not enable_model_check:
