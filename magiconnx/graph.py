@@ -256,5 +256,7 @@ class OnnxGraph():
         if (node.name in self.all_edges_map) and (not rewrite):
             raise RuntimeError(f'{node.name} already exists in the {node.op_type}')
         for in_idx in node.inputs:
+            if in_idx not in self._all_ops_map:
+                continue
             in_name = self._all_ops_map[in_idx].name
             self.all_edges_map.setdefault(in_name, []).append(node.name)
