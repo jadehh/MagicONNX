@@ -48,7 +48,7 @@ class OnnxNode():
     def name(self):
         # TODO: 使用装饰器
         if self._node.name == '':
-            self._node.name = f'{self._node.op_type}_{self._node.outputs[0]}'
+            self._node.name = f'{self._node.op_type}_{self._node.output[0]}'
         return self._node.name
 
     @name.setter
