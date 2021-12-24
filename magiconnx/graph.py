@@ -19,6 +19,7 @@ class OnnxGraph():
     @typeassert(model=str)
     def __init__(self, model):
         #TODO:support filename, serialtostring, graphproto
+        self._model_path = model
         self._model = onnx.load(model)
         graph = self._model.graph
         self._all_ops_map = {}
@@ -242,6 +243,16 @@ class OnnxGraph():
             return self
         else:
             return model_sim 
+
+    def extract(self, input_tensor_name_list, output_tensor_name_list, new_model_save_path, enable_model_check=True):
+        def check_model(model):
+            pass
+        if not enable_model_check:
+            # TODO: Avoid permanent modification
+            onnx.checker.check_model = check_model
+        print('[INFO] Begin to extract the model.')
+        onnx.utils.extract_model(self._model_path, new_model_save_path, input_tensor_name_list, output_tensor_name_list)
+        print('[INFO] Extract the model completed, model saved in {}.'.format(new_model_save_path))
 
     ###############################################
     #######       assistant operation       #######
