@@ -96,6 +96,13 @@
   - **`inplace`(bool)**: 是否修改原模型对象
   - **`kwargs`(dict)**: 参见 [simplify接口说明](https://github.com/daquexian/onnx-simplifier/blob/master/onnxsim/onnx_simplifier.py#L408)
 
+- **extract(input_tensor_name_list, output_tensor_name_list, new_model_save_path, enable_model_check=True)**
+  对模型进行截断处理
+  - **`new_model_save_path`(str)**: 截断模型保存路径
+  - **`input_tensor_name_list`(list)**: 输入节点列表
+  - **`output_tensor_name_list`(list)**: 输出节点列表
+  - **`enable_model_check`(bool)**: 是否开启`model_checker`，默认开启，对含有自定义算子的模型可以关闭
+
 ## [OnnxNode操作](#OnnxNode操作)
 
 <table border="1">
