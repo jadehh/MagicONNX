@@ -17,7 +17,7 @@ from .utils import typeassert
 
 class OnnxGraph():
     @typeassert(model=str)
-    def __init__(self, model):
+    def __init__(self, model, rewrite_node=False):
         #TODO:support filename, serialtostring, graphproto
         self._model_path = model
         self._model = onnx.load(model)
@@ -28,14 +28,14 @@ class OnnxGraph():
         #TODO:optimizer
         for node in chain(graph.input, graph.initializer, graph.node):
             node = OnnxNode(node)
-            self._update_ops_map(node.name, node, False)
+            self._update_ops_map(node.name, node, rewrite_node)
             if node.op_type in ['Initializer', 'Placeholder']:
                 continue
             for out in node.outputs:
-                self._update_ops_map(out, node, False)
+                self._update_ops_map(out, node, rewrite_node)
         for node in graph.node:
             node = OnnxNode(node)
-            self._update_edges_map(node, False)
+            self._update_edges_map(node, rewrite_node)
     ###############################################
     #######              Create             #######
     ###############################################
