@@ -2,14 +2,16 @@
 import onnx
 from onnx import (helper, TensorProto)
 from onnx.onnx_ml_pb2 import ModelProto
-from magiconnx import OnnxGraph
+# from magiconnx import OnnxGraph
 from copy import deepcopy
 import numpy as np
+import onnxruntime as rt
 
 def create_graph():
     # create graph according to layernorm
     x = helper.make_tensor_value_info("x", onnx.TensorProto.FLOAT, [20,5,10,10])
     y = helper.make_tensor_value_info("y", onnx.TensorProto.FLOAT, [20,5,10,10])
+    o1 = helper.make_tensor_value_info("6", onnx.TensorProto.FLOAT, [20,5,10,10])
     pow_const = helper.make_tensor('16', onnx.TensorProto.FLOAT, [], [2])
     add_const = helper.make_tensor('10', onnx.TensorProto.FLOAT, [], [1e-5])
 
@@ -25,7 +27,7 @@ def create_graph():
         'Sub',
         inputs=['x', '4'],
         outputs=['5'],
-        name='sub_1'
+        name='Sub_1' # Sub_1
     )
 
     Cast_2 = helper.make_node(
@@ -76,12 +78,12 @@ def create_graph():
         nodes=[ReduceMean_0, sub_1, Cast_2, Pow_3, ReduceMean_4, Add_6, Sqrt_7, Div_8],
         name='my-model',
         inputs=[x],
-        outputs=[y],
+        outputs=[y, o1],
         initializer=[pow_const, add_const]
     )
     model_def = onnx.helper.make_model(graph, producer_name='HJ-ArgMin-onnx')
     model_def.opset_import[0].version = 11
-    onnx.save(model_def, "./test_argmin_case.onnx")
+    onnx.save(model_def, "./doublename.onnx")
     return graph
 
 
@@ -135,26 +137,38 @@ def test_run_dump(path, data):
         print(output.shape)
 
 if __name__ == '__main__':
+    model = onnx.load('layernorm.onnx').graph
+    for node in model.node:
+        import pdb;pdb.set_trace()
+        print(node.name)
+    #.SerializeToString()
+    # sess = rt.InferenceSession(model)
+    # datas = [np.random.randn(20, 5, 10, 10).astype(np.float32)]
+    # inputs = [inode.name for inode in sess.get_inputs()]
+    # outputs = [out.name for out in sess.get_outputs()]
+    # ret = sess.run(outputs, {name: data for name, data in zip(inputs, datas)})
+    # print(ret)
+
     # graph = create_graph()
 
-    # test for create
-    create('layernorm.onnx')
-    # test for Retrieve
-    retrieve('layernorm.onnx')
-    # test for Update
-    update('layernorm.onnx')
-    # test for Delete
-    delete('layernorm.onnx')
+    # # test for create
+    # create('layernorm.onnx')
+    # # test for Retrieve
+    # retrieve('layernorm.onnx')
+    # # test for Update
+    # update('layernorm.onnx')
+    # # test for Delete
+    # delete('layernorm.onnx')
 
-    # test for graph operation
-    test_connection('layernorm.onnx')
-    graph = OnnxGraph('layernorm.onnx')
-    print(graph)
-    print(graph.inputs)
-    print(graph.outputs)
-    print(graph.graph)
+    # # test for graph operation
+    # test_connection('layernorm.onnx')
+    # graph = OnnxGraph('layernorm.onnx')
+    # print(graph)
+    # print(graph.inputs)
+    # print(graph.outputs)
+    # print(graph.graph)
 
-    data = np.random.randn(20, 5, 10, 10).astype(np.float32)
-    test_run_dump('layernorm.onnx', data)
+    # data = np.random.randn(20, 5, 10, 10).astype(np.float32)
+    # test_run_dump('layernorm.onnx', data)
 
-    graph.simplify(True).save('case6.onnx')
+    # graph.simplify(True).save('case6.onnx')
