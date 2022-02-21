@@ -8,7 +8,8 @@ from onnx.mapping import (TENSOR_TYPE_TO_NP_TYPE, NP_TYPE_TO_TENSOR_TYPE)
 from interface import (BaseNode, PLACEHOLDER, INITIALIZER)
 from utils.log import typeassert
 
-class OnnxNode():
+
+class OnnxNode(BaseNode):
     @typeassert(node=(NodeProto, TensorProto, ValueInfoProto))
     def __init__(self, node):
         self._node = node
@@ -44,7 +45,8 @@ class OnnxNode():
             self._node.op_type = op_type
             self._op_type = op_type
         else:
-            raise RuntimeError(f"Can't assign op_type({self._op_type}) to {self.name}")
+            raise RuntimeError(
+                f"Can't assign op_type({self._op_type}) to {self.name}")
 
     @property
     def name(self):
@@ -81,14 +83,16 @@ class OnnxNode():
             dtype = np.dtype(data_type)
         except Exception as e:
             print(e)
-            raise RuntimeError(f'{data_type} is illegal, only support basic data type: {NP_TYPE_TO_TENSOR_TYPE.keys()}')
+            raise RuntimeError(
+                f'{data_type} is illegal, only support basic data type: {NP_TYPE_TO_TENSOR_TYPE.keys()}')
         tensor = self._node.type.tensor_type
         tensor.elem_type = NP_TYPE_TO_TENSOR_TYPE[dtype]
 
     @property
     def shape(self):
         dims = self._node.type.tensor_type.shape
-        shapes = [str(dim.dim_value) if dim.dim_value > 0 else dim.dim_param for dim in dims.dim]
+        shapes = [str(dim.dim_value) if dim.dim_value >
+                  0 else dim.dim_param for dim in dims.dim]
         return f'[{", ".join(shapes)}]'
 
     @shape.setter
@@ -96,7 +100,8 @@ class OnnxNode():
     def shape(self, shapes):
         dims = self._node.type.tensor_type.shape
         if len(dims.dim) != len(shapes):
-            warnings.warn(f'Original len(shapes) is {len(dims.dim)}, but current settings is {shapes}')
+            warnings.warn(
+                f'Original len(shapes) is {len(dims.dim)}, but current settings is {shapes}')
         new_shape = TensorShapeProto()
         for shape in shapes:
             new_dim = TensorShapeProto().Dimension()
@@ -195,10 +200,11 @@ class OnnxNode():
         if key not in self._attr_map:
             raise KeyError(f'{self.name} do not have {key} attribute')
         return helper.get_attribute_value(self._attr_map[key])
- 
+
     def __setitem__(self, key, value):
         if key not in self._attr_map:
-            warnings.warn(f'{self.name} do not have {key} attribute, you should be responsible for it.')
+            warnings.warn(
+                f'{self.name} do not have {key} attribute, you should be responsible for it.')
         attr = helper.make_attribute(key, value)
         if key in self._attr_map:
             self._attr_map[key].CopyFrom(attr)
@@ -206,17 +212,17 @@ class OnnxNode():
             self._node.attribute.append(attr)
             self._attr_map[key] = value
 
-    # @property
-    # def domain(self):
-    #     if self._op_type in [INITIALIZER, PLACEHOLDER]:
-    #         raise RuntimeError(f"Only NodeProto can get domain attr")
-    #     return self._node.domain
+    @property
+    def domain(self):
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
+            raise RuntimeError(f"Only NodeProto can get domain attr")
+        return self._node.domain
 
-    # @domain.setter
-    # def domain(self, domain):
-    #     if self._op_type in [INITIALIZER, PLACEHOLDER]:
-    #         raise RuntimeError(f"Only NodeProto can set domain attr")
-    #     self._node.domain = domain
+    def clear_domain(self):
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
+            raise RuntimeError(f"Only NodeProto can set domain attr")
+        if self._node.HasField('domain'):
+            self._node.ClearField('domain')
 
     def _parse_attrs(self):
         return {attr.name: attr for attr in self._node.attribute}
