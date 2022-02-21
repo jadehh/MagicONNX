@@ -1,10 +1,12 @@
 import warnings
 import numpy as np
-from onnx.onnx_ml_pb2 import (NodeProto, TensorProto, ValueInfoProto, TensorShapeProto, AttributeProto)
+from onnx.onnx_ml_pb2 import (
+    NodeProto, TensorProto, ValueInfoProto, TensorShapeProto, AttributeProto)
 from onnx import (helper, numpy_helper)
 from onnx.mapping import (TENSOR_TYPE_TO_NP_TYPE, NP_TYPE_TO_TENSOR_TYPE)
 
 from .utils import typeassert
+
 
 class OnnxNode():
     @typeassert(node=(NodeProto, TensorProto, ValueInfoProto))
@@ -25,7 +27,7 @@ class OnnxNode():
         kvlist = {'Initializer': helper.printable_tensor_proto,
                   'Placeholder': helper.printable_value_info}
         return kvlist.setdefault(self._node_type,
-                                helper.printable_node)(self._node)
+                                 helper.printable_node)(self._node)
 
     @property
     def node(self):
@@ -42,7 +44,8 @@ class OnnxNode():
             self._node.op_type = op_type
             self._node_type = op_type
         else:
-            raise RuntimeError(f"Can't assign op_type to {self._node_type}({self.name})")
+            raise RuntimeError(
+                f"Can't assign op_type to {self._node_type}({self.name})")
 
     @property
     def name(self):
@@ -79,7 +82,8 @@ class OnnxNode():
             dtype = np.dtype(data_type)
         except Exception as e:
             print(e)
-            raise RuntimeError(f'{data_type} is illegal, only support basic data type: {NP_TYPE_TO_TENSOR_TYPE.keys()}')
+            raise RuntimeError(
+                f'{data_type} is illegal, only support basic data type: {NP_TYPE_TO_TENSOR_TYPE.keys()}')
         tensor = self._node.type.tensor_type
         tensor.elem_type = NP_TYPE_TO_TENSOR_TYPE[dtype]
 
@@ -87,7 +91,7 @@ class OnnxNode():
     def shape(self):
         dims = self._node.type.tensor_type.shape
         shapes = [str(dim.dim_value) if dim.dim_value > 0 else dim.dim_param
-                for dim in dims.dim]
+                  for dim in dims.dim]
         return f'[{", ".join(shapes)}]'
 
     @shape.setter
@@ -95,7 +99,8 @@ class OnnxNode():
     def shape(self, shapes):
         dims = self._node.type.tensor_type.shape
         if len(dims.dim) != len(shapes):
-            warnings.warn(f'Original len(shapes) is {len(dims.dim)}, but current settings is {shapes}')
+            warnings.warn(
+                f'Original len(shapes) is {len(dims.dim)}, but current settings is {shapes}')
         new_shape = TensorShapeProto()
         for shape in shapes:
             new_dim = TensorShapeProto().Dimension()
@@ -192,10 +197,11 @@ class OnnxNode():
         if key not in self._attr_map:
             raise KeyError(f'{self.name} do not have {key} attribute')
         return helper.get_attribute_value(self._attr_map[key])
- 
+
     def __setitem__(self, key, value):
         if key not in self._attr_map:
-            warnings.warn(f'{self.name} do not have {key} attribute, you should be responsible for it.')
+            warnings.warn(
+                f'{self.name} do not have {key} attribute, you should be responsible for it.')
         attr = helper.make_attribute(key, value)
         if key in self._attr_map:
             self._attr_map[key].CopyFrom(attr)
@@ -209,11 +215,11 @@ class OnnxNode():
             raise RuntimeError(f"Only NodeProto can get domain attr")
         return self._node.domain
 
-    @domain.setter
-    def domain(self, domain):
+    def clear_domain(self, domain):
         if self._node_type in ['Initializer', 'Placeholder']:
             raise RuntimeError(f"Only NodeProto can set domain attr")
-        self._node.domain = domain
+        if self._node.HasField('domain'):
+            self._node.ClearField('domain')
 
     def _parse_attrs(self):
         return {attr.name: attr

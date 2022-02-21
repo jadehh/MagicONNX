@@ -15,17 +15,18 @@ from onnxsim import simplify
 from .node import OnnxNode
 from .utils import typeassert
 
+
 class OnnxGraph():
     @typeassert(model=str)
     def __init__(self, model, rewrite_node=False):
-        #TODO:support filename, serialtostring, graphproto
+        # TODO:support filename, serialtostring, graphproto
         self._model_path = model
         self._model = onnx.load(model)
         graph = self._model.graph
         self._all_ops_map = {}
         self.all_edges_map = {}
         out_names = [out.name for out in graph.output]
-        #TODO:optimizer
+        # TODO:optimizer
         for node in chain(graph.input, graph.initializer, graph.node):
             node = OnnxNode(node)
             self._update_ops_map(node.name, node, rewrite_node)
@@ -39,13 +40,15 @@ class OnnxGraph():
     ###############################################
     #######              Create             #######
     ###############################################
+
     @typeassert(name=str, shape=(tuple, list))
     def add_placeholder(self, name, dtype, shape):
         try:
             dtype = np.dtype(dtype)
         except Exception as e:
             print(e)
-            raise RuntimeError(f'{dtype} is illegal, only support basic data type: {NP_TYPE_TO_TENSOR_TYPE.keys()}')
+            raise RuntimeError(
+                f'{dtype} is illegal, only support basic data type: {NP_TYPE_TO_TENSOR_TYPE.keys()}')
         elem_type = NP_TYPE_TO_TENSOR_TYPE[dtype]
         node = self._model.graph.input.add()
         node.CopyFrom(helper.make_tensor_value_info(name, elem_type, shape))
@@ -57,9 +60,9 @@ class OnnxGraph():
     def add_initializer(self, name, value):
         node = self._model.graph.initializer.add()
         node.CopyFrom(helper.make_tensor(name,
-                                        NP_TYPE_TO_TENSOR_TYPE[value.dtype],
-                                        value.shape,
-                                        value.flatten().tolist()))
+                                         NP_TYPE_TO_TENSOR_TYPE[value.dtype],
+                                         value.shape,
+                                         value.flatten().tolist()))
         init = OnnxNode(node)
         self._update_ops_map(init.name, init, False)
         return init
@@ -67,11 +70,11 @@ class OnnxGraph():
     @typeassert(name=str, op_type=str, attrs=dict)
     def add_node(self, name, op_type, attrs=dict()):
         node = self._model.graph.node.add()
-        node.CopyFrom(helper.make_node(op_type = op_type,
-                                    inputs = ['Null'],
-                                    outputs = ['Null'],
-                                    name=name,
-                                    **attrs))
+        node.CopyFrom(helper.make_node(op_type=op_type,
+                                       inputs=['Null'],
+                                       outputs=['Null'],
+                                       name=name,
+                                       **attrs))
         node = OnnxNode(node)
         self._update_ops_map(node.name, node, False)
         return node
@@ -83,7 +86,8 @@ class OnnxGraph():
 
         if mode == 'after':
             if len(dst.inputs) > 1:
-                raise RuntimeError('Only support single input Node, maybe you can use graph.connection')
+                raise RuntimeError(
+                    'Only support single input Node, maybe you can use graph.connection')
             while dst.outputs:
                 dst.outputs.pop()
             dst.outputs.append(src.outputs[index])
@@ -91,14 +95,16 @@ class OnnxGraph():
             src.outputs[index] = f'{src.name}_{dst.name}'
         elif mode == 'before':
             if len(dst.outputs) > 1:
-                raise RuntimeError('Only support single output Node, maybe you can use graph.connection')
+                raise RuntimeError(
+                    'Only support single output Node, maybe you can use graph.connection')
             while dst.inputs:
                 dst.inputs.pop()
             dst.inputs.append(src.inputs[index])
             dst.outputs[0] = f'{dst.name}/{src.name}'
             src.inputs[index] = f'{dst.name}/{src.name}'
         else:
-            raise ValueError(f'Only support mode in ("after", "before"), but got {mode}')
+            raise ValueError(
+                f'Only support mode in ("after", "before"), but got {mode}')
 
         return self
 
@@ -163,6 +169,14 @@ class OnnxGraph():
             self._model.graph.input.remove(node.node)
         else:
             self._model.graph.node.remove(node.node)
+
+    def keep_default_domain(self):
+        while len(self._model.opset_import) > 1:
+            self._model.opset_import.pop()
+        for name in self._all_ops_map:
+            if self._all_ops_map[name].op_type not in ('Initializer', 'Placeholder'):
+                self._all_ops_map[name].clear_domain()
+
     ###############################################
     #######         graph operation         #######
     ###############################################
@@ -178,8 +192,9 @@ class OnnxGraph():
             in_idx = [in_idx]
         out_len, in_len = len(out_idx), len(in_idx)
         if (0 in (out_len, in_len)) or \
-            ((out_len != in_len) and (1 not in (out_len, in_len))):
-            raise RuntimeError(f'It is fuzzy to connect between {out_idx} and {in_idx}')
+                ((out_len != in_len) and (1 not in (out_len, in_len))):
+            raise RuntimeError(
+                f'It is fuzzy to connect between {out_idx} and {in_idx}')
         elif out_len > in_len:
             in_idx = in_idx * out_len
         elif out_len < in_len:
@@ -216,13 +231,15 @@ class OnnxGraph():
         sess = rt.InferenceSession(model)
         inputs = [inode.name for inode in sess.get_inputs()]
         outputs = [out.name for out in sess.get_outputs()]
-        ret = sess.run(outputs, {name: data for name, data in zip(inputs, datas)})
+        ret = sess.run(outputs, {name: data for name,
+                                 data in zip(inputs, datas)})
         return ret
 
     @typeassert(data=(np.ndarray, list), path=str, outputs=(tuple, list))
     def dump(self, data, path='dump', outputs=[]):
         if len(outputs) == 0:
-            outputs = [name for name in enumerate_model_node_outputs(self._model)]
+            outputs = [
+                name for name in enumerate_model_node_outputs(self._model)]
         new_model = select_model_inputs_outputs(self._model, outputs)
         new_model_byte = new_model.SerializeToString()
         arrs = self._run(new_model_byte, data)
@@ -242,7 +259,7 @@ class OnnxGraph():
             self._model = model_sim
             return self
         else:
-            return model_sim 
+            return model_sim
 
     @typeassert(new_model_save_path=str, input_tensor_name_list=list, output_tensor_name_list=list, enable_model_check=bool)
     def extract(self, new_model_save_path, input_tensor_name_list, output_tensor_name_list, enable_model_check=True):
@@ -252,13 +269,15 @@ class OnnxGraph():
             # TODO: Avoid permanent modification
             onnx.checker.check_model = check_model
         print('[INFO] Begin to extract the model.')
-        onnx.utils.extract_model(self._model_path, new_model_save_path, input_tensor_name_list, output_tensor_name_list)
-        print('[INFO] Extract the model completed, model saved in {}.'.format(new_model_save_path))
+        onnx.utils.extract_model(
+            self._model_path, new_model_save_path, input_tensor_name_list, output_tensor_name_list)
+        print('[INFO] Extract the model completed, model saved in {}.'.format(
+            new_model_save_path))
 
     ###############################################
     #######       assistant operation       #######
     ###############################################
-    #TODO: 接口设计需要更合理，主要是name和rewrite的设计
+    # TODO: 接口设计需要更合理，主要是name和rewrite的设计
     def _update_ops_map(self, name, node, rewrite=True):
         if (name in self._all_ops_map) and (not rewrite):
             raise RuntimeError(f'{name} already exists in the NodeProto')
@@ -266,7 +285,8 @@ class OnnxGraph():
 
     def _update_edges_map(self, node, rewrite=True):
         if (node.name in self.all_edges_map) and (not rewrite):
-            raise RuntimeError(f'{node.name} already exists in the {node.op_type}')
+            raise RuntimeError(
+                f'{node.name} already exists in the {node.op_type}')
         for in_idx in node.inputs:
             if in_idx not in self._all_ops_map:
                 continue
