@@ -8,9 +8,9 @@ import onnx
 from onnx import (helper, GraphProto)
 from onnx.mapping import NP_TYPE_TO_TENSOR_TYPE
 
-from interface import (BaseGraph, PLACEHOLDER, INITIALIZER)
-from node import OnnxNode
-from utils.log import typeassert
+from . import (BaseGraph, OnnxNode, PLACEHOLDER, INITIALIZER)
+from .node import OnnxNode
+from .utils.log import typeassert
 
 
 class OnnxGraph(BaseGraph):

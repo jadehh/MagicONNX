@@ -1,4 +1,4 @@
-from interface import (BaseGraph, BaseNode)
+from .interface import (BaseGraph, BaseNode, INITIALIZER, PLACEHOLDER)
 from .node import OnnxNode
 from .graph import OnnxGraph
 

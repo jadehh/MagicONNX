@@ -5,8 +5,8 @@ from onnx import (NodeProto, TensorProto, ValueInfoProto,
                   helper, numpy_helper)
 from onnx.mapping import (TENSOR_TYPE_TO_NP_TYPE, NP_TYPE_TO_TENSOR_TYPE)
 
-from interface import (BaseNode, PLACEHOLDER, INITIALIZER)
-from utils.log import typeassert
+from . import (BaseNode, PLACEHOLDER, INITIALIZER)
+from .utils.log import typeassert
 
 
 class OnnxNode(BaseNode):
