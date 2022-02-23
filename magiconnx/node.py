@@ -1,33 +1,34 @@
 import warnings
 import numpy as np
-from onnx.onnx_ml_pb2 import (
-    NodeProto, TensorProto, ValueInfoProto, TensorShapeProto, AttributeProto)
-from onnx import (helper, numpy_helper)
+from onnx import (NodeProto, TensorProto, ValueInfoProto,
+                  TensorShapeProto, AttributeProto,
+                  helper, numpy_helper)
 from onnx.mapping import (TENSOR_TYPE_TO_NP_TYPE, NP_TYPE_TO_TENSOR_TYPE)
 
-from .utils import typeassert
+from . import (BaseNode, PLACEHOLDER, INITIALIZER)
+from .utils.log import typeassert
 
 
-class OnnxNode():
+class OnnxNode(BaseNode):
     @typeassert(node=(NodeProto, TensorProto, ValueInfoProto))
     def __init__(self, node):
         self._node = node
         if isinstance(node, NodeProto):
-            self._node_type = node.op_type
+            self._op_type = node.op_type
             self._attr_map = self._parse_attrs()
         elif isinstance(node, TensorProto):
-            self._node_type = 'Initializer'
+            self._op_type = INITIALIZER
         else:
-            self._node_type = 'Placeholder'
+            self._op_type = PLACEHOLDER
 
     ###############################################
     #######         common property         #######
     ###############################################
     def __str__(self):
-        kvlist = {'Initializer': helper.printable_tensor_proto,
-                  'Placeholder': helper.printable_value_info}
-        return kvlist.setdefault(self._node_type,
-                                 helper.printable_node)(self._node)
+        kvlist = {INITIALIZER: helper.printable_tensor_proto,
+                  PLACEHOLDER: helper.printable_value_info}
+        return kvlist.get(self._op_type,
+                          default=helper.printable_node)(self._node)
 
     @property
     def node(self):
@@ -36,16 +37,16 @@ class OnnxNode():
     @property
     def op_type(self):
         '''https://github.com/onnx/onnx/blob/master/onnx/onnx.proto3#L414'''
-        return self._node_type
+        return self._op_type
 
     @op_type.setter
     def op_type(self, op_type):
-        if self._node_type not in ['Initializer', 'Placeholder']:
+        if self._op_type not in [INITIALIZER, PLACEHOLDER]:
             self._node.op_type = op_type
-            self._node_type = op_type
+            self._op_type = op_type
         else:
             raise RuntimeError(
-                f"Can't assign op_type to {self._node_type}({self.name})")
+                f"Can't assign op_type({self._op_type}) to {self.name}")
 
     @property
     def name(self):
@@ -90,8 +91,8 @@ class OnnxNode():
     @property
     def shape(self):
         dims = self._node.type.tensor_type.shape
-        shapes = [str(dim.dim_value) if dim.dim_value > 0 else dim.dim_param
-                  for dim in dims.dim]
+        shapes = [str(dim.dim_value) if dim.dim_value >
+                  0 else dim.dim_param for dim in dims.dim]
         return f'[{", ".join(shapes)}]'
 
     @shape.setter
@@ -117,10 +118,10 @@ class OnnxNode():
     @property
     def value(self):
         """Convert TensorProto to numpy array."""
-        if self._node_type not in ['Initializer', 'Constant']:
+        if self._op_type not in [INITIALIZER, 'Constant']:
             raise RuntimeError(
-                f'Only support Initializer/Constant, but the current node({self.name}) is {self._node_type}')
-        if self._node_type == 'Initializer':
+                f'Only support Initializer/Constant, but the current node({self.name}) is {self._op_type}')
+        if self._op_type == INITIALIZER:
             ret = numpy_helper.to_array(self._node)
         else:
             ret = numpy_helper.to_array(self._node.attribute[0].t)
@@ -129,10 +130,10 @@ class OnnxNode():
     @value.setter
     @typeassert(value=np.ndarray)
     def value(self, value):
-        if self._node_type not in ['Initializer', 'Constant']:
+        if self._op_type not in [INITIALIZER, 'Constant']:
             raise RuntimeError(
-                f'Only support Initializer/Constant, but the current node({self.name}) is {self._node_type}')
-        if self._node_type == 'Initializer':
+                f'Only support Initializer/Constant, but the current node({self.name}) is {self._op_type}')
+        if self._op_type == INITIALIZER:
             self._node.CopyFrom(numpy_helper.from_array(value, self.name))
         else:
             self._node.attribute[0].t.CopyFrom(numpy_helper.from_array(value))
@@ -142,51 +143,53 @@ class OnnxNode():
     ##############################################
     @property
     def inputs(self):
-        if self._node_type in ['Initializer', 'Placeholder']:
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
             warnings.warn(
-                f'Only NodeProto has input_names, but the current node({self.name}) is {self._node_type}')
+                f'Only NodeProto has input_names, but the current node({self.name}) is {self._op_type}')
             return []
         return self._node.input
 
     @inputs.setter
+    @typeassert(value=(list, tuple))
     def inputs(self, value):
-        if self._node_type in ['Initializer', 'Placeholder']:
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
             warnings.warn(
-                f'Only NodeProto can set input_names, but the current node({self.name}) is {self._node_type}')
+                f'Only NodeProto can set input_names, but the current node({self.name}) is {self._op_type}')
         while self._node.input:
             self._node.input.pop()
         self._node.input.extend(value)
 
     @typeassert(idx=int, name=str)
     def set_input(self, idx, name):
-        if self._node_type in ['Initializer', 'Placeholder']:
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
             warnings.warn(
-                f'Only NodeProto can set input_names, but the current node is {self._node_type}')
+                f'Only NodeProto can set input_names, but the current node is {self._op_type}')
         self._node.input[idx] = name
 
     @property
     def outputs(self):
         # TODO:每个节点都有(输入)输出才对
-        if self._node_type in ['Initializer', 'Placeholder']:
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
             warnings.warn(
-                f'Only NodeProto has output_names, but the current node is {self._node_type}')
+                f'Only NodeProto has output_names, but the current node is {self._op_type}')
             return []
         return self._node.output
 
     @outputs.setter
+    @typeassert(value=(list, tuple))
     def outputs(self, value):
-        if self._node_type in ['Initializer', 'Placeholder']:
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
             warnings.warn(
-                f'Only NodeProto can set output_names, but the current node is {self._node_type}')
+                f'Only NodeProto can set output_names, but the current node is {self._op_type}')
         while self._node.output:
             self._node.output.pop()
         self._node.output.extend(value)
 
     @typeassert(idx=int, name=str)
     def set_output(self, idx, name):
-        if self._node_type in ['Initializer', 'Placeholder']:
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
             warnings.warn(
-                f'Only NodeProto can set input_names, but the current node is {self._node_type}')
+                f'Only NodeProto can set input_names, but the current node is {self._op_type}')
         self._node.output[idx] = name
 
     @property
@@ -211,16 +214,15 @@ class OnnxNode():
 
     @property
     def domain(self):
-        if self._node_type in ['Initializer', 'Placeholder']:
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
             raise RuntimeError(f"Only NodeProto can get domain attr")
         return self._node.domain
 
-    def clear_domain(self, domain):
-        if self._node_type in ['Initializer', 'Placeholder']:
+    def clear_domain(self):
+        if self._op_type in [INITIALIZER, PLACEHOLDER]:
             raise RuntimeError(f"Only NodeProto can set domain attr")
         if self._node.HasField('domain'):
             self._node.ClearField('domain')
 
     def _parse_attrs(self):
-        return {attr.name: attr
-                for attr in self._node.attribute}
+        return {attr.name: attr for attr in self._node.attribute}
