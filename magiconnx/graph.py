@@ -25,13 +25,18 @@ class OnnxGraph(BaseGraph):
         # key = node.name, value = node后继节点name组成的列表
         self._all_edges_map = {}
         self._all_ops_name = set()
+        graph_outputs = [node.name for node in graph.output]
         for node in chain(graph.input, graph.initializer, graph.node):
             node = OnnxNode(node)
             self._all_ops_name.add(node.name)
             self._update_ops_map(node.name, node)
             if node.op_type not in [INITIALIZER, PLACEHOLDER]:
                 for out in node.outputs:
-                    self._update_ops_map(out, node)
+                    if out not in graph_outputs:
+                        self._update_ops_map(out, node)
+        for node in graph.output:
+            node = OnnxNode(node)
+            self._update_ops_map(node.name, node)
         for node in graph.node:
             node = OnnxNode(node)
             self._update_edges_map(node)
