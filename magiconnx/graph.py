@@ -96,11 +96,18 @@ class OnnxGraph(BaseGraph):
             if len(dst.inputs) > 1:
                 raise RuntimeError(
                     'Only support single input Node, maybe you can use graph.connection')
+            if len(src.outputs) > 1:
+                print('[WARNING] Results may be not correct when the anchor node has multi outputs.')
             while dst.outputs:
                 dst.outputs.pop()
             dst.outputs.append(src.outputs[index])
             dst.inputs[0] = f'{anchor}/{dst.name}'
+
+            self._all_edges_map[dst.name] = self._all_edges_map[src.name]
+            self._all_edges_map[src.name] = [dst.name]
+            self._all_ops_map[src.outputs[index]] = dst
             src.outputs[index] = f'{anchor}/{dst.name}'
+            self._all_ops_map[f'{anchor}/{dst.name}'] = src
         elif mode == 'before':
             if len(dst.outputs) > 1:
                 raise RuntimeError(
@@ -108,11 +115,19 @@ class OnnxGraph(BaseGraph):
             while dst.inputs:
                 dst.inputs.pop()
             dst.inputs.append(src.inputs[index])
+
+            input_name = self._all_ops_map[src.inputs[index]].name
+            input_index = self._all_edges_map[input_name].index(src.name)
+            self._all_edges_map[input_name][input_index] = dst.name
+            self._all_edges_map[dst.name] = [src.name]
             dst.outputs[0] = f'{dst.name}/{anchor}'
+            self._all_ops_map[f'{dst.name}/{anchor}'] = dst
             src.inputs[index] = f'{dst.name}/{anchor}'
         else:
             raise ValueError(
                 f'The mode should be equal to "after" or "before", but got {mode}')
+
+        self._all_ops_name.add(dst.name)
 
         return self
 
@@ -169,6 +184,8 @@ class OnnxGraph(BaseGraph):
             for src_idx, dst_idx in maps.items():
                 appendix.set_input(dst_idx, src.inputs[src_idx])
         self._del_node(src)
+        del self._all_edges_map[name]
+        self._all_ops_name.remove(name)
 
     def _del_node(self, node):
         if node.op_type == INITIALIZER:
