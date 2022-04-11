@@ -128,7 +128,6 @@ class OnnxGraph(BaseGraph):
                 f'The mode should be equal to "after" or "before", but got {mode}')
 
         self._all_ops_name.add(dst.name)
-
         return self
 
     ###############################################
@@ -183,9 +182,14 @@ class OnnxGraph(BaseGraph):
             appendix = self._all_ops_map[appendix_name]
             for src_idx, dst_idx in maps.items():
                 appendix.set_input(dst_idx, src.inputs[src_idx])
+                input_name = self._all_ops_map[src.inputs[src_idx]].name
+                edge_idx = self._all_edges_map[input_name].index(name)
+                self._all_edges_map[input_name][edge_idx] = appendix_name
+
         self._del_node(src)
         del self._all_edges_map[name]
         self._all_ops_name.remove(name)
+        import pdb;pdb.set_trace()
 
     def _del_node(self, node):
         if node.op_type == INITIALIZER:
