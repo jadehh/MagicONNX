@@ -189,7 +189,6 @@ class OnnxGraph(BaseGraph):
         self._del_node(src)
         del self._all_edges_map[name]
         self._all_ops_name.remove(name)
-        import pdb;pdb.set_trace()
 
     def _del_node(self, node):
         if node.op_type == INITIALIZER:
