@@ -28,7 +28,7 @@ class OnnxNode(BaseNode):
         kvlist = {INITIALIZER: helper.printable_tensor_proto,
                   PLACEHOLDER: helper.printable_value_info}
         return kvlist.get(self._op_type,
-                          default=helper.printable_node)(self._node)
+                          helper.printable_node)(self._node)
 
     @property
     def node(self):
