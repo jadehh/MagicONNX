@@ -40,6 +40,9 @@ class OnnxGraph(BaseGraph):
         for node in graph.node:
             node = OnnxNode(node)
             self._update_edges_map(node)
+        for node_name in self._all_ops_name:
+            if node_name not in self._all_edges_map:
+                self._all_edges_map.setdefault(node_name, [])
 
     ###############################################
     #######              Create             #######

@@ -65,7 +65,7 @@ def test_for_nodeproto(node):
 
 if __name__ == '__main__':
     model = onnx.load('layernorm.onnx')
-    model = onnx.load('dynamic.onnx')
+    # model = onnx.load('dynamic.onnx')
     placeholder = model.graph.input[0]
     initializer = model.graph.initializer[0]
     node_proto = model.graph.node[0]
