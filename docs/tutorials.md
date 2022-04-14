@@ -143,10 +143,11 @@ node['attr_x'] = attr_x             # 修改attr_x属性
 目前支持的优化策略：
   - `Int64ToInt32Optimizer`: int64格式转换为int32格式
   - `ContinuousSliceOptimizer`: 合并连续两个slice算子
+
+TODO List:
   - `ContinuousConcatOptimizer`: 合并连续两个Concat算子
   - `Conv1dOptimizer`: conv1d算子优化
   - `TransposeOptimizer`: transpose优化
-  - `SoftmaxAxisOptimizer`: softmax换轴优化
 
 ```python
 from magiconnx import OnnxGraph
@@ -175,5 +176,4 @@ optimized_graph.save('./sample_optimized_cus.onnx')
   1. 在 `magiconnx/optimize/optimizers` 文件夹添加自己的策略实现，要点：
       - 继承`BaseOptimizer`基类
       - 实现`optimize`方法
-      - 实现`get_name`方法
-  2. 在`magiconnx/optimize/optimizers/__init__.py`内添加自己的实现类
+  2. 在`magiconnx/optimize/optimizers/__init__.py`内添加自己的实现类名和类
