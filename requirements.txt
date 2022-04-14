@@ -4,3 +4,4 @@ onnx-simplifier >= 0.3.6
 onnxruntime >= 1.9.0
 protobuf >= 3.7.0
 skl2onnx >= 1.10.0
+easydict
