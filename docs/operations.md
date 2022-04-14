@@ -43,6 +43,9 @@
   > note:
   > - `add_6 = graph['Add_6']` 表示获取 `Add_6` 节点
   - **`key`(string)**: `OnnxNode` 的 `name`
+- **get_next_nodes(op_name)**
+  获取 `graph` 中 `op_name` 的后继结点集合
+  - **`op_name`(string)**: 图中存在的节点名称
 
 ### [删除node](#删除node)
 - **del_node(name, maps=None, auto_connection=True)**

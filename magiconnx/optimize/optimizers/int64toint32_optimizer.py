@@ -54,7 +54,7 @@ class Int64ToInt32Optimizer(BaseOptimizer):
             node_value[node_value > MAX_VALUE_INT32] = MAX_VALUE_INT32
         if (node_value < MIN_VALUE_INT32).any():
             node_value[node_value < MIN_VALUE_INT32] = MIN_VALUE_INT32
-        node.value = node_value.astype(np.int32)
+        node.value = node_value.astype("int32")
         return node
 
     @staticmethod
@@ -62,7 +62,7 @@ class Int64ToInt32Optimizer(BaseOptimizer):
         flag = False
         constant_nodes = graph.get_nodes('Constant')
         for node in constant_nodes:
-            if np.issubdtype(node.value.dtype, np.int64):
+            if np.issubdtype(node.value.dtype, "int64"):
                 node = Int64ToInt32Optimizer._value_to_int32(node)
                 flag = True
         return flag
@@ -72,7 +72,7 @@ class Int64ToInt32Optimizer(BaseOptimizer):
         flag = False
         initializer_nodes = graph.get_nodes('Initializer')
         for node in initializer_nodes:
-            if np.issubdtype(node.value.dtype, np.int64):
+            if np.issubdtype(node.value.dtype, "int64"):
                 node = Int64ToInt32Optimizer._value_to_int32(node)
                 flag = True
         return flag

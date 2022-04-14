@@ -146,6 +146,10 @@ class OnnxGraph(BaseGraph):
                 seen.add(node.name)
         return ret
 
+    @typeassert(op_name=str)
+    def get_next_nodes(self, op_name):
+        return [self.__getitem__(name) for name in self._all_edges_map[op_name]]
+
     @typeassert(key=str)
     def __getitem__(self, key):
         ret = self._all_ops_map.get(key)
