@@ -14,6 +14,7 @@
   - [PlaceHolder专属API](#placeholder专属api)
   - [Initializer专属API](#initializer专属api)
   - [NodeProto专属API](#nodeproto专属api)
+- [OptimizerManager](#OptimizerManager)
 
 ## [概念定义](#概念定义)
 ### [Placeholder定义](#Placeholder定义)
@@ -137,3 +138,42 @@ node.attrs                          # 获取所有属性键值对
 node['attr_1']                      # 获取attr_1属性
 node['attr_x'] = attr_x             # 修改attr_x属性
 ```
+## [OptimizerManager](#OptimizerManager)
+**`OptimizerManager`** 类功能是能够自动执行一些自定义的优化操作。
+目前支持的优化策略：
+  - `Int64ToInt32Optimizer`: int64格式转换为int32格式
+  - `ContinuousSliceOptimizer`: 合并连续两个slice算子
+  - `ContinuousConcatOptimizer`: 合并连续两个Concat算子
+  - `Conv1dOptimizer`: conv1d算子优化
+  - `TransposeOptimizer`: transpose优化
+  - `SoftmaxAxisOptimizer`: softmax换轴优化
+
+```python
+from magiconnx import OnnxGraph
+from magiconnx.optimize.optimizer_manager import OptimizerManager
+from magiconnx.optimize.optimizers import Int64ToInt32Optimizer
+
+graph = OnnxGraph('./sample.onnx')
+
+# 默认加载策略: 'safe'模式，只加载肯定会有收益的优化策略
+optimize_manager_default = OptimizerManager(graph)
+optimized_graph = optimize_manager_default.apply()
+optimized_graph.save('./sample_optimized_v1.onnx')
+
+# 可选加载策略: 'all'模式，加载所有优化策略
+optimize_manager_default = OptimizerManager(graph, mode='all')
+optimized_graph = optimize_manager_default.apply()
+optimized_graph.save('./sample_optimized_v2.onnx')
+
+# 读取cfg文件，配置策略
+cfg_path = './sample.json'  # json内容示例: {'optimizers': ['Int64ToInt32Optimizer']}
+optimize_manager_cus = OptimizerManager(graph, cfg_path=cfg_path)
+optimized_graph = optimize_manager_cus.apply()
+optimized_graph.save('./sample_optimized_cus.onnx')
+```
+如何添加自己的策略：
+  1. 在 `magiconnx/optimize/optimizers` 文件夹添加自己的策略实现，要点：
+      - 继承`BaseOptimizer`基类
+      - 实现`optimize`方法
+      - 实现`get_name`方法
+  2. 在`magiconnx/optimize/optimizers/__init__.py`内添加自己的实现类

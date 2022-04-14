@@ -139,7 +139,6 @@ def test_run_dump(path, data):
 if __name__ == '__main__':
     model = onnx.load('layernorm.onnx').graph
     for node in model.node:
-        import pdb;pdb.set_trace()
         print(node.name)
     #.SerializeToString()
     # sess = rt.InferenceSession(model)

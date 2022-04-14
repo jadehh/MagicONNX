@@ -40,6 +40,9 @@ class OnnxGraph(BaseGraph):
         for node in graph.node:
             node = OnnxNode(node)
             self._update_edges_map(node)
+        for node_name in self._all_ops_name:
+            if node_name not in self._all_edges_map:
+                self._all_edges_map.setdefault(node_name, [])
 
     ###############################################
     #######              Create             #######
@@ -142,6 +145,10 @@ class OnnxGraph(BaseGraph):
                 ret.append(node)
                 seen.add(node.name)
         return ret
+
+    @typeassert(op_name=str)
+    def get_next_nodes(self, op_name):
+        return [self.__getitem__(name) for name in self._all_edges_map[op_name]]
 
     @typeassert(key=str)
     def __getitem__(self, key):
