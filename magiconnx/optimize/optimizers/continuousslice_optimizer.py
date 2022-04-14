@@ -112,3 +112,4 @@ class ContinuousSliceOptimizer(BaseOptimizer):
             graph[node2.inputs[4]],
             '{}_4'.format(node1.name)).name
         graph.del_node(node1.name)
+        return graph

@@ -341,15 +341,14 @@ class OnnxGraph(BaseGraph):
                 warnings.warn(f'{name} belongs to both {PLACEHOLDER} and {INITIALIZER}, we only keep it as {INITIALIZER}'
                               f'This may be caused by setting keep_initializers_as_inputs=True in torch.onnx.export')
             else:
-                raise RuntimeError(
-                    f"This is an invalid model. Error: two nodes with same node name ({name})")
+                print('[WARNING] This model may not be topological sorted.')
 
         self._all_ops_map[name] = node
 
     def _update_edges_map(self, node):
         if node.name in self._all_edges_map:
-            raise RuntimeError(
-                f"This is an invalid model. Error: two nodes with same node name ({node.name})")
+            print('[WARNING] This model may not be topological sorted.')
+
         for in_idx in node.inputs:
             if in_idx not in self._all_ops_map:
                 continue

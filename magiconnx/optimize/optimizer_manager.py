@@ -64,6 +64,7 @@ class OptimizerManager():
                 print("succeed: {}".format(optimizer.get_name()))
             else:
                 print("failed: {}".format(optimizer.get_name()))
+        return onnx_graph
 
     @staticmethod
     def get_available_optimizers():
