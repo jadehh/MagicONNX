@@ -1,5 +1,2 @@
-from .base_node import BaseNode
+from .operator import (Operator, PLACEHOLDER, INITIALIZER)
 from .base_graph import BaseGraph
-
-PLACEHOLDER = 'Placeholder'
-INITIALIZER = 'Initializer'

@@ -14,7 +14,7 @@ class BaseGraph(ABC):
         pass
 
     @abstractmethod
-    def add_node(self, name, op_type, attrs=dict()):
+    def add_node(self, name, op_type, attrs=dict(), inputs=[], outputs=[], domain=None):
         pass
 
     @abstractmethod
@@ -65,10 +65,6 @@ class BaseGraph(ABC):
         pass
 
     @abstractmethod
-    def keep_default_domain(self):
-        pass
-
-    @abstractmethod
     def connection(self, previous, out_idx, behind, in_idx):
         pass
 
@@ -81,13 +77,5 @@ class BaseGraph(ABC):
         pass
 
     @abstractmethod
-    def dump(self, data, path='dump', outputs=[]):
-        pass
-
-    @abstractmethod
-    def simplify(self, inplace, **kwargs):
-        pass
-
-    @abstractmethod
-    def extract(self, new_model_save_path, input_tensor_name_list, output_tensor_name_list, enable_model_check=True):
+    def optimizer(self, blacklist=[]):
         pass
