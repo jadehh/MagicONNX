@@ -1,6 +1,5 @@
 import time
 import os
-from itertools import chain
 import warnings
 
 import numpy as np
@@ -14,31 +13,21 @@ from .assistant import Assistant
 from ..utils.log import typeassert
 
 
-class OnnxGraph(BaseGraph, Assistant):
+class OnnxGraph(BaseGraph):
     def __init__(self, nodes=[], inputs=[], outputs=[], inits=[], name=None, **kwargs):
-        Assistant.__init__(self)
+        super(OnnxGraph, self).__init__()
         self._inputs = inputs
         self._outputs = outputs
         self._inits = inits
         self._name = name
         self._idx = 0
-        self._name2node = {node.name: node
-                           for node in chain(inits, inputs, nodes, outputs)}
-        for node in chain(inits, inputs):
-            self.next2node.update({name: node for name in node.outputs})
-        for node in nodes:
-            self.prev2node.update({name: node for name in node.inputs})
-            self.next2node.update({name: node for name in node.outputs})
-        generate_name = {node.name for node in chain(inits, inputs)}
-        # TODO:更新ph和init的outputs
-        for node in nodes:
-            for name in node.inputs:
-                node._prev.append(self.next2node[name])
-                if name in generate_name:
-                    self._name2node[name]._next.append(node)
-            for name in node.outputs:
-                node._next.append(self.prev2node.get(name,
-                                                     self._name2node.get(name)))
+        Assistant.update_maps(nodes, inputs, outputs, inits)
+        for k, v in Assistant.name2node.items():
+            print(f'k = {k}')
+            print(f'v.inputs = {v.inputs}\n'
+                  f'v.prev() = {v.prev()}\n'
+                  f'v.outputs = {v.outputs}\n'
+                  f'v.next() = {v.next()}')
         self._meta = {'ir_version': kwargs.get('ir_version', 4),
                       # TODO:从version.py中动态读取更好
                       'producer_name': kwargs.get('producer_name', 'MagicONNX'),
@@ -64,9 +53,16 @@ class OnnxGraph(BaseGraph, Assistant):
             graph = path_or_bytes
 
         inits = [BaseNode.create_node(init) for init in graph.initializer]
+        init_names = {init.name for init in graph.initializer}
         inputs = [BaseNode.create_node(input)
-                  for input in graph.input if input.name not in inits]
-        nodes = [BaseNode.create_node(node) for node in graph.node]
+                  for input in graph.input if input.name not in init_names]
+        # TODO:这里关于constant结点的处理不够优雅
+        nodes = []
+        for node in graph.node:
+            if node.op_type == 'Constant':
+                inits.append(BaseNode.create_node(node))
+            else:
+                nodes.append(BaseNode.create_node(node))
         outputs = [BaseNode.create_node(output) for output in graph.output]
 
         return cls(nodes, inputs, outputs, inits, graph.name, **meta)

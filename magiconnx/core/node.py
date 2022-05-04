@@ -18,15 +18,14 @@ def get_op_type(node):
         return PLACEHOLDER
 
 
-class BaseNode(Operator, Assistant):
-    def __init__(self, name='', op_type='', inputs=[], outputs=[], attrs={}):
+class BaseNode(Operator):
+    def __init__(self, name='', op_type='', inputs=None, outputs=None, attrs=None):
+        super(BaseNode, self).__init__()
         self._name = name
         self._op_type = op_type
         self._inputs = inputs
         self._outputs = outputs
         self._attrs = attrs
-        self._prev = []
-        self._next = []
 
     @staticmethod
     @typeassert(node=(NodeProto, TensorProto, ValueInfoProto))
@@ -87,16 +86,29 @@ class BaseNode(Operator, Assistant):
         self._outputs = outputs
 
     def prev(self):
-        return self._prev
+        ret = []
+        for name in self.inputs:
+            if name in Assistant.name2node:
+                ret.append(Assistant.name2node[name])
+            else:
+                ret.extend(Assistant.next2node[name])
+        return ret
 
     def next(self):
-        return self._next
+        ret = []
+        for name in self.outputs:
+            if name in Assistant.name2node:
+                ret.append(Assistant.name2node[name])
+            else:
+                ret.extend(Assistant.prev2node[name])
+        return ret
 
 
 class PlaceHolder(BaseNode):
     # TODO:不确定这里是否需要把output=None作为入参
     def __init__(self, name, dtype, shape):
-        super(PlaceHolder, self).__init__(name, PLACEHOLDER)
+        super(PlaceHolder, self).__init__(name, PLACEHOLDER,
+                                          inputs=list(), outputs=list(), attrs=dict())
         try:
             self._dtype = np.dtype(dtype)
         except Exception as e:
@@ -151,7 +163,8 @@ class PlaceHolder(BaseNode):
 class Initializer(BaseNode):
     # TODO:不确定这里是否需要把output=None作为入参
     def __init__(self, name, value):
-        super(Initializer, self).__init__(name, INITIALIZER)
+        super(Initializer, self).__init__(name, INITIALIZER,
+                                          inputs=list(), outputs=list(), attrs=dict())
         self._value = value
         self._output_nodes = []
 
@@ -190,9 +203,6 @@ class Node(BaseNode):
                  inputs=None, outputs=None, attrs=None, domain=None):
         super(Node, self).__init__(name, op_type, inputs, outputs, attrs)
         self._domain = domain
-        # 不支持修改这个变量，可以通过修改inputs和outputs自动更新该变量
-        self._prev = []
-        self._next = []
 
     @classmethod
     def parse(cls, node):
@@ -203,12 +213,10 @@ class Node(BaseNode):
     @typeassert(idx=int, name=str)
     def set_input(self, idx, name):
         self._inputs[idx] = name
-        # 还要更新self.inputs[idx]
 
     @typeassert(idx=int, name=str)
     def set_output(self, idx, name):
         self._outputs[idx] = name
-        # 还要更新self.outputs[idx]
 
     @property
     def attrs(self):
@@ -239,10 +247,6 @@ class Node(BaseNode):
                                 name=self.name,
                                 domain=self.domain,
                                 **self.attrs)
-
-    def _update_io(self):
-        # 用于辅助更新inputs/input_nodes，outputs/output_nodes数据
-        pass
 
     def __str__(self) -> str:
         return f'Node({self.name}):=> \n\tinputs={self.inputs}\n\tattrs = {self.attrs}\n\toutputs={self.outputs}'
