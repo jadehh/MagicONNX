@@ -1,6 +1,8 @@
+from itertools import chain
 import time
 import os
 import warnings
+from importlib import import_module
 
 import numpy as np
 import onnx
@@ -60,7 +62,9 @@ class OnnxGraph(BaseGraph):
         nodes = []
         for node in graph.node:
             if node.op_type == 'Constant':
-                inits.append(BaseNode.create_node(node))
+                const = BaseNode.create_node(node)
+                const.name = node.output[0]
+                inits.append(const)
             else:
                 nodes.append(BaseNode.create_node(node))
         outputs = [BaseNode.create_node(output) for output in graph.output]
@@ -72,7 +76,7 @@ class OnnxGraph(BaseGraph):
     ###############################################
 
     @typeassert(name=str, shape=(tuple, list))
-    def add_placeholder(self, name, dtype, shape):
+    def add_placeholder(self, name, dtype, shape, is_input=True):
         try:
             dtype = np.dtype(dtype)
         except Exception as e:
@@ -80,66 +84,52 @@ class OnnxGraph(BaseGraph):
             raise RuntimeError(
                 f'{dtype} is illegal, only support basic data type: {NP_TYPE_TO_TENSOR_TYPE.keys()}')
         ph = PlaceHolder(name, dtype, shape)
-        self._update_ops_map(ph)
+        self._inputs.append(ph)
+        if is_input:
+            Assistant.update_maps(inputs=[ph])
+        else:
+            Assistant.update_maps(outputs=[ph])
         return ph
 
     @typeassert(name=str, value=np.ndarray)
     def add_initializer(self, name, value):
         init = Initializer(name, value)
-        self._update_ops_map(init)
+        self._inits.append(init)
+        Assistant.update_maps(inits=[init])
         return init
 
     @typeassert(name=str, op_type=str, attrs=dict, inputs=list, outputs=list, domain=str)
     def add_node(self, name, op_type, attrs={}, inputs=[], outputs=[], domain=None):
         node = Node(name, op_type, inputs=inputs,
                     outputs=outputs, attrs=attrs, domain=domain)
-        self._update_ops_map(node)
+        Assistant.update_maps(nodes=[node])
         return node
 
-    @typeassert(anchor=str, dst=BaseNode, index=int, mode=str)
-    def insert_node(self, anchor, dst, index=0, mode='after'):
-        assert dst.name not in self._all_ops_name, f'The insert node (dst.name={dst.name}) has been existed in graph, it is illegal.'
-        assert anchor in self._all_ops_name, f'The anchor node ({anchor}) is not exists in graph, please check it!'
-        src = self._all_ops_map.get(anchor)
+    @typeassert(anchor=str, dst=BaseNode, src_idx=int, mode=str)
+    def insert_node(self, anchor, dst, src_idx=0, mode='after'):
+        src = Assistant.name2node.get(anchor)
+        assert src is None, f'The anchor({anchor}) does not exist in graph, please check it!'
 
         if mode == 'after':
             if len(dst.inputs) > 1:
                 raise RuntimeError(
                     'Only support single input Node, maybe you can use graph.connection')
-            if len(src.outputs) > 1:
-                print(
-                    '[WARNING] Results may be not correct when the anchor node has multi outputs.')
-            while dst.outputs:
-                dst.outputs.pop()
-            dst.outputs.append(src.outputs[index])
-            dst.inputs[0] = f'{anchor}/{dst.name}'
-
-            self._all_edges_map[dst.name] = self._all_edges_map[src.name]
-            self._all_edges_map[src.name] = [dst.name]
-            self._all_ops_map[src.outputs[index]] = dst
-            src.outputs[index] = f'{anchor}/{dst.name}'
-            self._all_ops_map[f'{anchor}/{dst.name}'] = src
+            dst.outputs = [src.outputs[src_idx]]
+            dst.inputs = [f'{anchor}/{dst.name}']
+            src.outputs[src_idx] = f'{anchor}/{dst.name}'
 
         elif mode == 'before':
             if len(dst.outputs) > 1:
                 raise RuntimeError(
                     'Only support single output Node, maybe you can use graph.connection')
-            while dst.inputs:
-                dst.inputs.pop()
-            dst.inputs.append(src.inputs[index])
-
-            input_name = self._all_ops_map[src.inputs[index]].name
-            input_index = self._all_edges_map[input_name].index(src.name)
-            self._all_edges_map[input_name][input_index] = dst.name
-            self._all_edges_map[dst.name] = [src.name]
-            dst.outputs[0] = f'{dst.name}/{anchor}'
-            self._all_ops_map[f'{dst.name}/{anchor}'] = dst
-            src.inputs[index] = f'{dst.name}/{anchor}'
+            dst.inputs = [src.inputs[src_idx]]
+            dst.outputs = [f'{dst.name}/{anchor}']
+            src.inputs[src_idx] = f'{dst.name}/{anchor}'
         else:
             raise ValueError(
                 f'The mode should be equal to "after" or "before", but got {mode}')
 
-        self._update_ops_map(dst)
+        Assistant.update_maps(nodes=[dst])
         return self
 
     ###############################################
@@ -149,15 +139,15 @@ class OnnxGraph(BaseGraph):
     def get_nodes(self, op_type):
         ret = []
         seen = set()
-        for node in self._all_ops_map.values():
-            if node.name not in seen and node.op_type == op_type:
+        for name, node in Assistant.name2node.items():
+            if name not in seen and node.op_type == op_type:
                 ret.append(node)
-                seen.add(node.name)
+                seen.add(name)
         return ret
 
     @typeassert(key=str)
     def __getitem__(self, key):
-        ret = self._all_ops_map.get(key)
+        ret = Assistant.name2node.get(key)
         if ret is None:
             raise ValueError(f'{key} dose not exist in graph')
         return ret
@@ -170,139 +160,113 @@ class OnnxGraph(BaseGraph):
         if value.op_type in (INITIALIZER, PLACEHOLDER):
             raise ValueError(
                 f'Only supports replacing NodeProto, but value({value.name}) is not')
-        assert key in self._all_ops_name, f'The ({key}) is not exists in graph, please check it!'
-        src = self._all_ops_map.pop(key)
-        self._del_node(src)
+        assert key in Assistant.name2node, f'The ({key}) is not exists in graph, please check it!'
+        src = Assistant.name2node.pop(key)
         value.inputs = src.inputs
         value.outputs = src.outputs
-        self._all_ops_map[key] = value
-        for out in value.outputs:
-            self._all_ops_map[out] = value
+        Assistant.update_maps(nodes=[value])
 
     ###############################################
     #######             Delete              #######
     ###############################################
     @typeassert(name=str, maps=dict, auto_connection=bool)
     def del_node(self, name, maps={0: 0}, auto_connection=True):
-        assert name in self._all_ops_name, f'The ({name}) is not exists in graph, please check it!'
-        src = self._all_ops_map.pop(name)
-        if not auto_connection:
-            self._del_node(src)
-            return
-
-        for appendix_name in self._all_edges_map[name]:
-            appendix = self._all_ops_map[appendix_name]
-            for src_idx, dst_idx in maps.items():
-                appendix.set_input(dst_idx, src.inputs[src_idx])
-                input_name = self._all_ops_map[src.inputs[src_idx]].name
-                edge_idx = self._all_edges_map[input_name].index(name)
-                self._all_edges_map[input_name][edge_idx] = appendix_name
-
-        self._del_node(src)
-        del self._all_edges_map[name]
-        self._all_ops_name.remove(name)
-
-    def _del_node(self, node):
-        if node.op_type == INITIALIZER:
-            self._model.graph.initializer.remove(node.node)
-            # case by keep_initializers_as_inputs=True
-            if node.name in self.inputs:
-                self._model.graph.input.remove(node.node)
-        elif node.op_type == PLACEHOLDER:
-            self._model.graph.input.remove(node.node)
-        else:
-            self._model.graph.node.remove(node.node)
+        assert name in Assistant.name2node, f'The Node({name}) is not exists in graph, please check it!'
+        src = Assistant.name2node.pop(name)
+        if auto_connection:
+            Assistant.remove_node(src)
 
     def keep_default_domain(self):
-        while len(self._model.opset_import) > 1:
-            self._model.opset_import.pop()
-        for name, node in self._all_ops_map:
-            if isinstance(node, Node):
-                self._all_ops_map[name].clear_domain()
+        self._meta['opset_import'] = None
 
     ###############################################
     #######         graph operation         #######
     ###############################################
-    @typeassert(previous=str, out_idx=(int, list, tuple), behind=str, in_idx=(int, list, tuple))
-    def connection(self, previous, out_idx, behind, in_idx):
-        if previous not in self._all_ops_name or behind not in self._all_ops_name:
+    @typeassert(previous=str, behind=str, maps=dict)
+    def connection(self, previous, behind, maps={0: 0}):
+        if previous not in Assistant.name2node or behind not in Assistant.name2node:
             raise ValueError(f'{previous} or {behind} is not exists in graph')
-        prev = self._all_ops_map[previous]
-        beh = self._all_ops_map[behind]
-        if isinstance(out_idx, int):
-            out_idx = [out_idx]
-        if isinstance(in_idx, int):
-            in_idx = [in_idx]
-        out_len, in_len = len(out_idx), len(in_idx)
-        if (0 in (out_len, in_len)) or \
-                ((out_len != in_len) and (1 not in (out_len, in_len))):
-            raise RuntimeError(
-                f'It is fuzzy to connect between {out_idx} and {in_idx}')
-        elif out_len > in_len:
-            in_idx = in_idx * out_len
-        elif out_len < in_len:
-            out_idx = out_idx * in_len
-        for idx, odx in zip(in_idx, out_idx):
-            beh.inputs[idx] = prev.outputs[odx]
+        for idx, odx in maps.items():
+            Assistant.name2node[behind].inputs[idx] = Assistant.name2node[previous].outputs[odx]
 
     def __str__(self):
-        return helper.printable_graph(self._model.graph)
+        return helper.printable_graph(self.graph)
 
     @property
     def graph(self):
-        return self._model.graph
+        return helper.make_graph(nodes=[node.node for node in self.toposort()],
+                                 name=self._name,
+                                 inputs=[inp.node for inp in self.inputs],
+                                 outputs=[out.node for out in self.outputs],
+                                 initializer=[init.node for init in self.inits])
+
+    def toposort(self):
+        ret = []
+        seen = set()
+
+        def dfs(start, targets):
+            for node in start.next():
+                if node.op_type in (PLACEHOLDER, INITIALIZER) or node.name in seen:
+                    return
+                targets.append(node)
+                seen.add(node.name)
+                dfs(node, targets)
+        for gen in chain(self.inputs, self.inits):
+            dfs(gen, ret)
+        return ret
+
+    @property
+    def model(self):
+        return helper.make_model(self.graph, **self._meta)
 
     @property
     def inputs(self):
-        return [in_node.name for in_node in self._model.graph.input]
+        return self._inputs
 
     @property
     def outputs(self):
-        return [out.name for out in self._model.graph.output]
+        return self._outputs
+
+    @property
+    def inits(self):
+        return self._inits
 
     def save(self, path):
-        onnx.save(self._model, path)
+        onnx.save(self.model, path)
 
-    @typeassert(data=(np.ndarray, list))
-    def run(self, data):
-        model = self._model.SerializeToString()
-        return self._run(model, data)
+    @typeassert(datas=(np.ndarray, list))
+    def run(self, datas):
+        self._run(self.model, datas)
 
     def _run(self, model, datas):
-        try:
-            import onnxruntime as rt
-        except ImportError:
-            raise RuntimeError(
-                "\033[45;1m onnxruntime模块导入失败，请检查环境或pip install onnxruntime \033[0m")
+        ort = import_module('onnxruntime')
 
         if isinstance(datas, np.ndarray):
             datas = [datas]
-        sess = rt.InferenceSession(model)
+        sess = ort.InferenceSession(model)
         inputs = [inode.name for inode in sess.get_inputs()]
         outputs = [out.name for out in sess.get_outputs()]
-        ret = sess.run(outputs, {name: data for name,
-                                 data in zip(inputs, datas)})
+        ret = sess.run(outputs, {name: data
+                                 for name, data in zip(inputs, datas)})
         return ret
 
     @typeassert(data=(np.ndarray, list), path=str, outputs=(tuple, list))
     def dump(self, data, path='dump', outputs=[]):
-        try:
-            from skl2onnx.helpers.onnx_helper import (select_model_inputs_outputs,
-                                                      enumerate_model_node_outputs)
-        except ImportError:
-            raise RuntimeError(
-                "\033[45;1m skl2onnx模块导入失败，请检查环境或pip install skl2onnx \033[0m")
+        select_model_inputs_outputs = import_module(
+            'skl2onnx.helpers.onnx_helper.select_model_inputs_outputs')
+        enumerate_model_node_outputs = import_module(
+            'skl2onnx.helpers.onnx_helper.enumerate_model_node_outputs')
 
         if len(outputs) == 0:
             outputs = [
-                name for name in enumerate_model_node_outputs(self._model)]
-        new_model = select_model_inputs_outputs(self._model, outputs)
+                name for name in enumerate_model_node_outputs(self.model)]
+        new_model = select_model_inputs_outputs(self.model, outputs)
         new_model_byte = new_model.SerializeToString()
         arrs = self._run(new_model_byte, data)
         idx = 0
         if not os.path.exists(path):
             os.makedirs(path, mode=0o700)
-        for node in self._model.graph.node:
+        for node in self.model.graph.node:
             for i, output in enumerate(node.output):
                 fname = f'{node.name}_output{i}({output})_{round(time.time() * 1000000)}.npy'
                 np.save(os.path.join(path, fname), arrs[idx])
@@ -320,31 +284,6 @@ class OnnxGraph(BaseGraph):
             self._model_path, new_model_save_path, input_tensor_name_list, output_tensor_name_list)
         print('[INFO] Extract the model completed, model saved in {}.'.format(
             new_model_save_path))
-
-    ###############################################
-    #######       assistant operation       #######
-    ###############################################
-    def _update_ops_map(self, name, node):
-        exist_node = self._all_ops_map.get(name)
-        if exist_node is not None:
-            if exist_node.op_type == PLACEHOLDER and node.op_type == INITIALIZER:
-                warnings.warn(f'{name} belongs to both {PLACEHOLDER} and {INITIALIZER}, we only keep it as {INITIALIZER}'
-                              f'This may be caused by setting keep_initializers_as_inputs=True in torch.onnx.export')
-            else:
-                raise RuntimeError(
-                    f"This is an invalid model. Error: two nodes with same node name ({name})")
-
-        self._all_ops_map[name] = node
-
-    def _update_edges_map(self, node):
-        if node.name in self._all_edges_map:
-            raise RuntimeError(
-                f"This is an invalid model. Error: two nodes with same node name ({node.name})")
-        for in_idx in node.inputs:
-            if in_idx not in self._all_ops_map:
-                continue
-            in_name = self._all_ops_map[in_idx].name
-            self._all_edges_map.setdefault(in_name, []).append(node.name)
 
     def optimizer(self, blacklist=[]):
         print('optimizer')

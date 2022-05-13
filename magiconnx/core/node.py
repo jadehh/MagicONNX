@@ -210,14 +210,6 @@ class Node(BaseNode):
                  for attr in node.attribute}
         return cls(node.name, node.op_type, list(node.input), list(node.output), attrs, node.domain)
 
-    @typeassert(idx=int, name=str)
-    def set_input(self, idx, name):
-        self._inputs[idx] = name
-
-    @typeassert(idx=int, name=str)
-    def set_output(self, idx, name):
-        self._outputs[idx] = name
-
     @property
     def attrs(self):
         return self._attrs
