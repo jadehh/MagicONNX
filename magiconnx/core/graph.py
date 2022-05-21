@@ -24,19 +24,14 @@ class OnnxGraph(BaseGraph):
         self._name = name
         self._idx = 0
         Assistant.update_maps(nodes, inputs, outputs, inits)
-        for k, v in Assistant.name2node.items():
-            print(f'k = {k}')
-            print(f'v.inputs = {v.inputs}\n'
-                  f'v.prev() = {v.prev()}\n'
-                  f'v.outputs = {v.outputs}\n'
-                  f'v.next() = {v.next()}')
+
         self._meta = {'ir_version': kwargs.get('ir_version', 4),
                       # TODO:从version.py中动态读取更好
                       'producer_name': kwargs.get('producer_name', 'MagicONNX'),
                       'producer_version': kwargs.get('producer_version', 'beta'),
                       'domain': kwargs.get('domain', ''),
                       'model_version': kwargs.get('model_version', 0),
-                      'opset_import': kwargs.get('opset_import', None)}
+                      'opset_imports': kwargs.get('opset_imports', None)}
 
     @classmethod
     @typeassert(path_or_bytes=(str, ModelProto, GraphProto))
@@ -50,7 +45,7 @@ class OnnxGraph(BaseGraph):
                     'domain': path_or_bytes.domain,
                     'model_version': path_or_bytes.model_version,
                     'doc_string': path_or_bytes.doc_string,
-                    'opset_import': path_or_bytes.opset_import}
+                    'opset_imports': path_or_bytes.opset_import}
         else:
             graph = path_or_bytes
 
@@ -84,11 +79,12 @@ class OnnxGraph(BaseGraph):
             raise RuntimeError(
                 f'{dtype} is illegal, only support basic data type: {NP_TYPE_TO_TENSOR_TYPE.keys()}')
         ph = PlaceHolder(name, dtype, shape)
-        self._inputs.append(ph)
         if is_input:
             Assistant.update_maps(inputs=[ph])
+            self._inputs.append(ph)
         else:
             Assistant.update_maps(outputs=[ph])
+            self._outputs.append(ph)
         return ph
 
     @typeassert(name=str, value=np.ndarray)
@@ -108,7 +104,7 @@ class OnnxGraph(BaseGraph):
     @typeassert(anchor=str, dst=BaseNode, src_idx=int, mode=str)
     def insert_node(self, anchor, dst, src_idx=0, mode='after'):
         src = Assistant.name2node.get(anchor)
-        assert src is None, f'The anchor({anchor}) does not exist in graph, please check it!'
+        assert src is not None, f'The anchor({anchor}) does not exist in graph, please check it!'
 
         if mode == 'after':
             if len(dst.inputs) > 1:
@@ -116,21 +112,28 @@ class OnnxGraph(BaseGraph):
                     'Only support single input Node, maybe you can use graph.connection')
             dst.outputs = [src.outputs[src_idx]]
             dst.inputs = [f'{anchor}/{dst.name}']
+            for node in src.next():
+                if node.op_type == PLACEHOLDER:
+                    while src.name in node.inputs:
+                        node.inputs.remove(src.name)
             src.outputs[src_idx] = f'{anchor}/{dst.name}'
-
         elif mode == 'before':
             if len(dst.outputs) > 1:
                 raise RuntimeError(
                     'Only support single output Node, maybe you can use graph.connection')
             dst.inputs = [src.inputs[src_idx]]
             dst.outputs = [f'{dst.name}/{anchor}']
+            for node in src.prev():
+                if node.op_type in (INITIALIZER, PLACEHOLDER):
+                    while src.name in node.outputs:
+                        node.outputs.remove(src.name)
             src.inputs[src_idx] = f'{dst.name}/{anchor}'
+
         else:
             raise ValueError(
                 f'The mode should be equal to "after" or "before", but got {mode}')
 
-        Assistant.update_maps(nodes=[dst])
-        return self
+        Assistant.update_maps(nodes=[src, dst])
 
     ###############################################
     #######            Retrieve             #######
@@ -159,12 +162,21 @@ class OnnxGraph(BaseGraph):
     def __setitem__(self, key, value):
         if value.op_type in (INITIALIZER, PLACEHOLDER):
             raise ValueError(
-                f'Only supports replacing NodeProto, but value({value.name}) is not')
+                f'Only supports replacing Node, but value({value.name}) is {value.op_type}')
         assert key in Assistant.name2node, f'The ({key}) is not exists in graph, please check it!'
         src = Assistant.name2node.pop(key)
         value.inputs = src.inputs
         value.outputs = src.outputs
-        Assistant.update_maps(nodes=[value])
+        for node in src.prev():
+            if node.op_type in (INITIALIZER, PLACEHOLDER):
+                for idx, name in enumerate(node.outputs):
+                    if name == src.name:
+                        node.outputs[idx] = value.name
+        for node in src.next():
+            if node.op_type in (INITIALIZER, PLACEHOLDER):
+                for idx, name in enumerate(node.inputs):
+                    if name == src.name:
+                        node.inputs[idx] = value.name
 
     ###############################################
     #######             Delete              #######
@@ -177,7 +189,7 @@ class OnnxGraph(BaseGraph):
             Assistant.remove_node(src)
 
     def keep_default_domain(self):
-        self._meta['opset_import'] = None
+        self._meta['opset_imports'] = None
 
     ###############################################
     #######         graph operation         #######
@@ -190,7 +202,18 @@ class OnnxGraph(BaseGraph):
             Assistant.name2node[behind].inputs[idx] = Assistant.name2node[previous].outputs[odx]
 
     def __str__(self):
-        return helper.printable_graph(self.graph)
+        def print_meta(meta):
+            max_len = max(len(line) + 1 for line in meta)
+            flag = '#' * max_len
+            msg = '\n'.join([f'{line}{" " * (max_len - len(line))}'
+                             for line in meta])
+            return f'{flag}\n{msg}\n{flag}\n'
+        meta = print_meta([f'{k} :\t{v}' for k, v in self._meta.items()])
+        inputs = '\n'.join([f'{inp}' for inp in self.inputs])
+        inits = '\n'.join([f'{init}' for init in self.inits])
+        nodes = '\n'.join([f'{node}' for node in self.toposort()])
+        outputs = '\n'.join([f'{out}' for out in self.outputs])
+        return f'{meta}\nInputs:\n{inputs}\n\nInits:\n{inits}\n\nNodes:\n{nodes}\n\nOutputs:\n{outputs}\n\n'
 
     @property
     def graph(self):

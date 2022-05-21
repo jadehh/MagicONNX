@@ -6,10 +6,16 @@
 
 # 1. MagicONNX简介
 
-可以借鉴的开源项目
-onnxconverter-common
-onnx_transformers
-<https://github.com/BBuf/onnx_learn>
+`MagicONNX` 是一个支持方便修改onnx文件的项目，其主要优势在于：
+- 有详细的API文档说明
+
+  相对于ONNX官方接口而言，MagicONNX有详细的接口说明和示例
+
+- 可扩展的支持优化方法
+
+  目前已支持的优化方法：
+  - **long2int**: int64转int32计算
+  - **constfolding**：常量折叠
 
 # 2. 安装
 

@@ -195,12 +195,12 @@ class Initializer(BaseNode):
         return f'{self.op_type}({self.name}):=> (shape={self._value.shape}, dtype={self._value.dtype})'
 
     def __repr__(self) -> str:
-        return f'{self.__str__()}\n{self.value}'
+        return self.__str__()
 
 
 class Node(BaseNode):
     def __init__(self, name, op_type,
-                 inputs=None, outputs=None, attrs=None, domain=None):
+                 inputs=[], outputs=[], attrs={}, domain=None):
         super(Node, self).__init__(name, op_type, inputs, outputs, attrs)
         self._domain = domain
 

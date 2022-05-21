@@ -13,7 +13,6 @@ class Assistant():
         cls.name2node.update({node.name: node
                               for node in chain(inits, inputs, nodes, outputs)})
         cls.gen_name.update({gen.name for gen in chain(inits, inputs)})
-        cls.input_names.update({inp.name for inp in inputs})
         cls.output_names.update({out.name for out in outputs})
 
         for node in nodes:
