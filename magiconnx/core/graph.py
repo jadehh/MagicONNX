@@ -70,7 +70,7 @@ class OnnxGraph(BaseGraph):
     #######              Create             #######
     ###############################################
 
-    @typeassert(name=str, shape=(tuple, list))
+    @typeassert(name=str, shape=(tuple, list), is_input=bool)
     def add_placeholder(self, name, dtype, shape, is_input=True):
         try:
             dtype = np.dtype(dtype)
@@ -181,12 +181,18 @@ class OnnxGraph(BaseGraph):
     ###############################################
     #######             Delete              #######
     ###############################################
-    @typeassert(name=str, maps=dict, auto_connection=bool)
-    def del_node(self, name, maps={0: 0}, auto_connection=True):
+    @typeassert(name=str, maps=dict)
+    def remove(self, name, maps={0:0}):
         assert name in Assistant.name2node, f'The Node({name}) is not exists in graph, please check it!'
         src = Assistant.name2node.pop(name)
-        if auto_connection:
-            Assistant.remove_node(src)
+        if len(src.inputs) != len(maps.keys()):
+            warnings.warnings(f'some warnings')
+        for prev_idx, next_idx in maps.items():
+            for node in src.next():
+                if src.outputs[next_idx] in node.inputs:
+                    for idx, name in enumerate(node.inputs):
+                        if name == src.outputs[next_idx]:
+                            node.inputs[idx] = src.inputs[prev_idx]
 
     def keep_default_domain(self):
         self._meta['opset_imports'] = None
@@ -194,13 +200,6 @@ class OnnxGraph(BaseGraph):
     ###############################################
     #######         graph operation         #######
     ###############################################
-    @typeassert(previous=str, behind=str, maps=dict)
-    def connection(self, previous, behind, maps={0: 0}):
-        if previous not in Assistant.name2node or behind not in Assistant.name2node:
-            raise ValueError(f'{previous} or {behind} is not exists in graph')
-        for idx, odx in maps.items():
-            Assistant.name2node[behind].inputs[idx] = Assistant.name2node[previous].outputs[odx]
-
     def __str__(self):
         def print_meta(meta):
             max_len = max(len(line) + 1 for line in meta)
@@ -297,6 +296,7 @@ class OnnxGraph(BaseGraph):
 
     @typeassert(new_model_save_path=str, input_tensor_name_list=list, output_tensor_name_list=list, enable_model_check=bool)
     def extract(self, new_model_save_path, input_tensor_name_list, output_tensor_name_list, enable_model_check=True):
+        # TODO: use my own code
         def check_model(model):
             pass
         if not enable_model_check:
@@ -309,5 +309,9 @@ class OnnxGraph(BaseGraph):
             new_model_save_path))
 
     def optimizer(self, blacklist=[]):
-        print('optimizer')
-        pass
+        for sub_class in Optimizer.__subclasses__():
+            cls_name = sub_class.__name__
+            if cls_name in blacklist:
+                continue
+            opt = getattr(Optimizer, cls_name)
+            opt(self.model)

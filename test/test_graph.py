@@ -33,9 +33,10 @@ def test_update(graph):
 
 
 def test_del(graph):
-    graph.del_node('Cast_2')
+    graph.remove('Cast_2')
     graph.save('case4.onnx')
-
+    graph.remove('Div_8', maps={1:0})
+    graph.save('case5.onnx')
 
 if __name__ == '__main__':
     import numpy as np
@@ -44,3 +45,4 @@ if __name__ == '__main__':
     test_create(graph)
     test_retrieve(graph)
     test_update(graph)
+    test_del(graph)

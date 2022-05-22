@@ -39,6 +39,7 @@ class Operator(ABC):
     @property
     @abstractmethod
     def outputs(self):
+        # Not all operators have inputs and attributes, but there must be outputs
         pass
 
     @property

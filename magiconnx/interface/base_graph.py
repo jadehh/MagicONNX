@@ -6,7 +6,7 @@ class BaseGraph(ABC):
     #######              Create             #######
     ###############################################
     @abstractmethod
-    def add_placeholder(self, name, dtype, shape):
+    def add_placeholder(self, name, dtype, shape, is_input=True):
         pass
 
     @abstractmethod
@@ -43,7 +43,7 @@ class BaseGraph(ABC):
     #######             Delete              #######
     ###############################################
     @abstractmethod
-    def del_node(self, name, maps={0: 0}, auto_connection=True):
+    def remove(self, name, maps={0: 0}):
         pass
 
     ###############################################
@@ -62,10 +62,6 @@ class BaseGraph(ABC):
     @property
     @abstractmethod
     def graph(self):
-        pass
-
-    @abstractmethod
-    def connection(self, previous, out_idx, behind, in_idx):
         pass
 
     @abstractmethod
