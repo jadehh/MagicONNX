@@ -28,33 +28,8 @@ pip install .
 
 # 3. 使用方法
 
-[学习教程](./docs/tutorials.md)
+node使用方法参见[Node说明](docs/node.md) 和 [样例代码](test/test_node.py)
 
-[API说明](./docs/operations.md)
+graph使用方法参见[Graph说明](docs/graph.md) 和 [样例代码](test/test_graph.py)
 
 ![动画演示](./image/create.gif)
-
-```python
-from magiconnx import OnnxGraph
-graph = OnnxGraph('layernorm.onnx')
-
-# 原onnx中只有一个input输入，现在增加一个 dummy_input 输入结点
-ph = graph.add_placeholder('dummy_input', 'int32', [2, 3, 4])
-
-# 增加一个add节点
-add = graph.add_node('dummy_add', 'Add')      # add_node默认单输入单输出，需要手动修改节点输入输出信息
-
-# 设置add节点的输入输出【连边】
-init = graph.add_initializer('dummy_init', np.array([[2, 3, 4]]))
-add.inputs = ['dummy_input', 'dummy_init']
-add.outputs = ['add_out']
-
-# 在add前面插入argmax节点，属性用dict传参
-argmax = graph.add_node('dummy_ArgMax',
-                      'ArgMax',
-                      {'axis': 0, 'keepdims': 1, 'select_last_index': 0})
-graph.insert_node('dummy_add', argmax, mode='before')
-
-# 保存修改好的onnx图
-graph.save('case2.onnx')
-```
