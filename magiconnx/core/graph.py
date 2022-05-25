@@ -168,15 +168,25 @@ class OnnxGraph(BaseGraph):
         value.inputs = src.inputs
         value.outputs = src.outputs
         for node in src.prev():
+            # case1: key is behind Initializer or input
             if node.op_type in (INITIALIZER, PLACEHOLDER):
                 for idx, name in enumerate(node.outputs):
                     if name == src.name:
                         node.outputs[idx] = value.name
         for node in src.next():
+            # case2: key is before output
             if node.op_type in (INITIALIZER, PLACEHOLDER):
                 for idx, name in enumerate(node.inputs):
                     if name == src.name:
                         node.inputs[idx] = value.name
+        for name in src.inputs:
+            for idx, node in enumerate(Assistant.prev2node[name]):
+                if node.name == src.name:
+                    Assistant.prev2node[name][idx] = value
+        for name in src.outputs:
+            for idx, node in enumerate(Assistant.next2node[name]):
+                if node.name == src.name:
+                    Assistant.next2node[name][idx] = value
 
     ###############################################
     #######             Delete              #######
@@ -185,14 +195,20 @@ class OnnxGraph(BaseGraph):
     def remove(self, name, maps={0:0}):
         assert name in Assistant.name2node, f'The Node({name}) is not exists in graph, please check it!'
         src = Assistant.name2node.pop(name)
-        if len(src.inputs) != len(maps.keys()):
-            warnings.warnings(f'some warnings')
-        for prev_idx, next_idx in maps.items():
-            for node in src.next():
-                if src.outputs[next_idx] in node.inputs:
-                    for idx, name in enumerate(node.inputs):
-                        if name == src.outputs[next_idx]:
-                            node.inputs[idx] = src.inputs[prev_idx]
+        in_names = [name for name in src.inputs if name not in Assistant.gen_name]
+        out_names = [name for name in src.outputs if name not in Assistant.output_names]
+
+        if len(in_names) != 1 or len(out_names) != 1:
+            raise RuntimeError('not support!')
+        for node in src.next():
+            for idx, name in enumerate(node.inputs):
+                if name == out_names[0]:
+                    node.inputs[idx] = in_names[0]
+        for name in src.inputs:
+            while src in Assistant.prev2node[name]:
+                Assistant.prev2node[name].remove(src)
+            Assistant.prev2node[name].extend(src.next())
+        Assistant.next2node.pop(out_names[0])
 
     def keep_default_domain(self):
         self._meta['opset_imports'] = None

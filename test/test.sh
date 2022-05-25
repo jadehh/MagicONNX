@@ -2,5 +2,5 @@
 
 set -u
 
-python model_example.py
-python node_example.py
+python test_model.py
+python test_node.py
