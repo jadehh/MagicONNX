@@ -171,6 +171,11 @@ cfg_path = './sample.json'  # json内容示例: {'optimizers': ['Int64ToInt32Opt
 optimize_manager_cus = OptimizerManager(graph, cfg_path=cfg_path)
 optimized_graph = optimize_manager_cus.apply()
 optimized_graph.save('./sample_optimized_cus.onnx')
+
+# 直接导入optimizer_list
+optimize_manager_cus = OptimizerManager(graph, optimizers=['Int64ToInt32Optimizer']))
+optimized_graph = optimize_manager_cus.apply()
+optimized_graph.save('./sample_optimized_cus.onnx')
 ```
 如何添加自己的策略：
   1. 在 `magiconnx/optimize/optimizers` 文件夹添加自己的策略实现，要点：

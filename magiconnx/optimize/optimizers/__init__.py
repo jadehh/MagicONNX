@@ -4,7 +4,7 @@ from .continuousslice_optimizer import ContinuousSliceOptimizer
 
 def get_optimizers_info():
     supported_optimizers = {
-        "Int64ToInt32Optimizer": Int64ToInt32Optimizer,
-        "ContinuousSliceOptimizer": ContinuousSliceOptimizer,
+        "Int64ToInt32Optimizer": Int64ToInt32Optimizer(name="Int64ToInt32Optimizer"),
+        "ContinuousSliceOptimizer": ContinuousSliceOptimizer(name="ContinuousSliceOptimizer"),
     }
     return supported_optimizers

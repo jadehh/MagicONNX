@@ -17,6 +17,11 @@ class BaseOptimizer(metaclass=ABCMeta):
     def __init__(self, name):
         self.__name = name
 
+    def __eq__(self, obj):
+        if not isinstance(obj, BaseOptimizer):
+            return False
+        return self.__name == obj.get_name()
+
     @abstractmethod
     @typeassert(graph=OnnxGraph)
     def optimize(self, graph):

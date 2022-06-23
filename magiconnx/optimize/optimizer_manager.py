@@ -17,44 +17,57 @@ class OptimizerManager():
                   2. all mode: load all available optimizers
                   3. input config file: load optimizers defined in input config file
     """
-
-    @typeassert(graph=OnnxGraph, cfg_path=str)
-    def __init__(self, graph, cfg_path='', mode='safe'):
+    @typeassert(cfg_path=str)
+    @typeassert(optimizers=list)
+    def __init__(self, graph, cfg_path='', optimizers=[], mode='safe'):
         self.onnx_graph = graph
-        self.cfg_path = cfg_path
         self.mode = mode
-        self.__optimizer_map = OptimizerManager.get_available_optimizers()
+        self.cfg_path = cfg_path
+        self.__input_optimizers = optimizers
+        self.__optimizer_map = get_optimizers_info()
+        self.__optimizer_names = self._generate_optimizer_names()
+        self.__optimizers = []
+        self._collect_optimizers()
+
+    def _generate_optimizer_names(self):
+        if not self.__input_optimizers:
+            return self.__input_optimizers
         if self.cfg_path != '':
-            self._get_optimizers_from_cfg(cfg_path)
-        elif self.mode == 'safe':
-            self.__optimizers = [self.__optimizer_map[optimizer_name] for
-                                 optimizer_name in SAFE_OPTIMIZERS]
+            cfg_data = load_json_file(self.cfg_path)
+            cfg_data = edict(cfg_data)
+            return cfg_data.optimizers
+        if self.mode == 'safe':
+            return SAFE_OPTIMIZERS
         elif self.mode == 'all':
-            self.__optimizers = [self.__optimizer_map[optimizer_name] for
-                                 optimizer_name in self.__optimizer_map.keys()]
+            return [optimizer_name for optimizer_name in self.__optimizer_map.keys()]
         else:
             raise ValueError('Mode {} not in supported modes.'.format(self.mode))
 
-    @typeassert(cfg_path=str)
-    def _get_optimizers_from_cfg(self, cfg_path):
-        self.__optimizers = []
-        cfg_data = load_json_file(cfg_path)
-        self.cfg_data = edict(cfg_data)
-        for optimizer_name in self.cfg_data.optimizers:
-            if self.__optimizer_map.get(optimizer_name) is None:
-                raise ValueError('Not support optimizer: {}'.format(optimizer_name))
-            self.__optimizers.append(self.__optimizer_map.get(optimizer_name))
+    def _collect_optimizers(self):
+        for optimizer_name in self.__optimizer_names:
+            self.add_optimizer(optimizer_name)
+
+    def get_optimizes(self):
+        return self.__optimizers
 
     def clear(self):
         self.__optimizers.clear()
 
-    @typeassert(optimizer=BaseOptimizer)
-    def add_optimizer(self, optimizer):
+    @typeassert(optimizer_name=str)
+    def add_optimizer(self, optimizer_name):
+        optimizer = self.__optimizer_map.get(optimizer_name)
         self.__optimizers.append(optimizer)
 
-    @typeassert(optimizer=BaseOptimizer)
-    def remove_optimizer(self, optimizer):
-        self.__optimizers.remove(optimizer)
+    @typeassert(optimizer_name=str)
+    @typeassert(remove_all=bool)
+    def remove_optimizer(self, optimizer_name, remove_all=True):
+        optimizer = self.__optimizer_map[optimizer_name]
+        if remove_all:
+            for idx in range(len(self.__optimizers)-1, -1, -1):
+                if self.__optimizers[idx] == optimizer:
+                    self.__optimizers.remove(optimizer)
+        else:
+            self.__optimizers.remove(optimizer)
 
     def apply(self):
         onnx_graph = self.onnx_graph
@@ -65,13 +78,3 @@ class OptimizerManager():
             else:
                 print("failed: {}".format(optimizer.get_name()))
         return onnx_graph
-
-    @staticmethod
-    def get_available_optimizers():
-        available_optimizer_dicts = dict()
-        for optimizer_name, optimizer_class in get_optimizers_info().items():
-            # build optimizer obj
-            optimizer_obj = optimizer_class(name=optimizer_name)
-            available_optimizer_dicts[optimizer_obj.get_name()] = optimizer_obj
-
-        return available_optimizer_dicts
