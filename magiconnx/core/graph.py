@@ -290,15 +290,12 @@ class OnnxGraph(BaseGraph):
 
     @typeassert(data=(np.ndarray, list), path=str, outputs=(tuple, list))
     def dump(self, data, path='dump', outputs=[]):
-        select_model_inputs_outputs = import_module(
-            'skl2onnx.helpers.onnx_helper.select_model_inputs_outputs')
-        enumerate_model_node_outputs = import_module(
-            'skl2onnx.helpers.onnx_helper.enumerate_model_node_outputs')
+        onnx_helper = import_module('skl2onnx.helpers.onnx_helper')
 
         if len(outputs) == 0:
             outputs = [
-                name for name in enumerate_model_node_outputs(self.model)]
-        new_model = select_model_inputs_outputs(self.model, outputs)
+                name for name in onnx_helper.enumerate_model_node_outputs(self.model)]
+        new_model = onnx_helper.select_model_inputs_outputs(self.model, outputs)
         new_model_byte = new_model.SerializeToString()
         arrs = self._run(new_model_byte, data)
         idx = 0
