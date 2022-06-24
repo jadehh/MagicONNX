@@ -35,7 +35,7 @@ class OptimizerTestCase(unittest.TestCase):
         optimizer_manager = OptimizerManager(onnx_model, optimizers=[
             'Int64ToInt32Optimizer', 'ContinuousSliceOptimizer'])
         optimizer_manager.add_optimizer('Int64ToInt32Optimizer')
-        optimizers = optimizer_manager.get_optimizes()
+        optimizers = optimizer_manager.get_optimizers()
         self.assertEqual(len(optimizers), 3, ['add optimizer failed'])
 
     def test_removeoptimizer(self):
@@ -43,7 +43,7 @@ class OptimizerTestCase(unittest.TestCase):
         optimizer_manager = OptimizerManager(onnx_model, optimizers=[
             'Int64ToInt32Optimizer', 'ContinuousSliceOptimizer', 'Int64ToInt32Optimizer'])
         optimizer_manager.remove_optimizer('Int64ToInt32Optimizer')
-        optimizers = optimizer_manager.get_optimizes()
+        optimizers = optimizer_manager.get_optimizers()
         self.assertEqual(len(optimizers), 1, ['remove optimizer failed'])
 
     def test_clearoptimizer(self):
@@ -51,7 +51,7 @@ class OptimizerTestCase(unittest.TestCase):
         optimizer_manager = OptimizerManager(onnx_model, optimizers=[
             'Int64ToInt32Optimizer', 'ContinuousSliceOptimizer'])
         optimizer_manager.clear()
-        optimizers = optimizer_manager.get_optimizes()
+        optimizers = optimizer_manager.get_optimizers()
         self.assertEqual(len(optimizers), 0, ['clear optimizer failed'])
 
 

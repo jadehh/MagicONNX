@@ -143,6 +143,7 @@ node['attr_x'] = attr_x             # 修改attr_x属性
 目前支持的优化策略：
   - `Int64ToInt32Optimizer`: int64格式转换为int32格式
   - `ContinuousSliceOptimizer`: 合并连续两个slice算子
+  - `BertBigKernelOptimizer`: Bert系列网络适配fusion pass改图
 
 TODO List:
   - `ContinuousConcatOptimizer`: 合并连续两个Concat算子
@@ -152,7 +153,6 @@ TODO List:
 ```python
 from magiconnx import OnnxGraph
 from magiconnx.optimize.optimizer_manager import OptimizerManager
-from magiconnx.optimize.optimizers import Int64ToInt32Optimizer
 
 graph = OnnxGraph('./sample.onnx')
 
@@ -167,15 +167,15 @@ optimized_graph = optimize_manager_default.apply()
 optimized_graph.save('./sample_optimized_v2.onnx')
 
 # 读取cfg文件，配置策略
-cfg_path = './sample.json'  # json内容示例: {'optimizers': ['Int64ToInt32Optimizer']}
-optimize_manager_cus = OptimizerManager(graph, cfg_path=cfg_path)
-optimized_graph = optimize_manager_cus.apply()
-optimized_graph.save('./sample_optimized_cus.onnx')
+cfg_path = './sample.json'  # json内容示例: {"optimizers": ["Int64ToInt32Optimizer"]}
+optimize_manager_cus1 = OptimizerManager(graph, cfg_path=cfg_path)
+optimized_graph = optimize_manager_cus1.apply()
+optimized_graph.save('./sample_optimized_cus1.onnx')
 
 # 直接导入optimizer_list
-optimize_manager_cus = OptimizerManager(graph, optimizers=['Int64ToInt32Optimizer']))
-optimized_graph = optimize_manager_cus.apply()
-optimized_graph.save('./sample_optimized_cus.onnx')
+optimize_manager_cus2 = OptimizerManager(graph, optimizers=['Int64ToInt32Optimizer']))
+optimized_graph = optimize_manager_cus2.apply()
+optimized_graph.save('./sample_optimized_cus2.onnx')
 ```
 如何添加自己的策略：
   1. 在 `magiconnx/optimize/optimizers` 文件夹添加自己的策略实现，要点：

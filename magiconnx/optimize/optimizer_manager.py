@@ -30,7 +30,7 @@ class OptimizerManager():
         self._collect_optimizers()
 
     def _generate_optimizer_names(self):
-        if not self.__input_optimizers:
+        if self.__input_optimizers:
             return self.__input_optimizers
         if self.cfg_path != '':
             cfg_data = load_json_file(self.cfg_path)
@@ -47,7 +47,7 @@ class OptimizerManager():
         for optimizer_name in self.__optimizer_names:
             self.add_optimizer(optimizer_name)
 
-    def get_optimizes(self):
+    def get_optimizers(self):
         return self.__optimizers
 
     def clear(self):
