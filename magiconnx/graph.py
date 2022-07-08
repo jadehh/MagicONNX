@@ -190,8 +190,11 @@ class OnnxGraph(BaseGraph):
             for src_idx, dst_idx in maps.items():
                 appendix.set_input(dst_idx, src.inputs[src_idx])
                 input_name = self._all_ops_map[src.inputs[src_idx]].name
-                edge_idx = self._all_edges_map[input_name].index(name)
-                self._all_edges_map[input_name][edge_idx] = appendix_name
+                if name in self._all_edges_map[input_name]:
+                    edge_idx = self._all_edges_map[input_name].index(name)
+                    self._all_edges_map[input_name][edge_idx] = appendix_name
+                else:
+                    self._all_edges_map[input_name].append(appendix_name)
 
         self._del_node(src)
         del self._all_edges_map[name]
