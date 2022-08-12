@@ -71,6 +71,7 @@ def split_three_parts(graph, start_matmul):
             node.inputs = ["Null"]
             node.outputs = ["{}_output".format(node.name)]
             node['perm'] = perm
+            node_list.append(node)
         return node_list
     matmul_node_lists = build_branch_nodes(matmul_node_base, matmul_node_base_weight, split_axixs=1)
     add_node_lists = build_branch_nodes(add_node_base, add_node_base_weight, split_axixs=0)
@@ -110,7 +111,7 @@ def split_three_parts(graph, start_matmul):
     onnx_graph.del_node(reshape_node_base.name, auto_connection=False)
     onnx_graph.del_node(transpose_node_base.name, auto_connection=False)
     for last_node in last_node_lists:
-        onnx_graph.del_node(last_node, auto_connection=False)
+        onnx_graph.del_node(last_node.name, auto_connection=False)
 
 
 def split_model(graph):
@@ -118,10 +119,10 @@ def split_model(graph):
         # check patter: Div->Mul->Add->MatMul->Add->Reshape
         try:
             next_node1 = graph.get_next_nodes(div_node.name)[0]
-            next_node2 = graph.get_next_nodes(next_node1)[0]
-            next_node3 = graph.get_next_nodes(next_node2)[0]
-            next_node4 = graph.get_next_nodes(next_node3)[0]
-            next_node5 = graph.get_next_nodes(next_node4)[0]
+            next_node2 = graph.get_next_nodes(next_node1.name)[0]
+            next_node3 = graph.get_next_nodes(next_node2.name)[0]
+            next_node4 = graph.get_next_nodes(next_node3.name)[0]
+            next_node5 = graph.get_next_nodes(next_node4.name)[0]
         except:
             continue
         if next_node1.op_type == "Mul" and \
