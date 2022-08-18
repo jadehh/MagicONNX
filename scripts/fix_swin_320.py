@@ -38,7 +38,7 @@ def merge_add(graph):
             # get node list: suppose single input single output
             cur_node = start_node
             node_list = []
-            for op_type in range(op_type_list):
+            for op_type in op_type_list:
                 cur_node = graph.get_next_nodes(cur_node.name)[0]
                 node_list.append(cur_node)
                 if cur_node.op_type != op_type:
@@ -73,7 +73,7 @@ def merge_add(graph):
 def reconnect_mul_add(graph):
     for softmax_node in graph.get_nodes(op_type="Softmax"):
         pre_node = softmax_node
-        while pre_node.op_type != "Matmul":
+        while pre_node.op_type != "MatMul":
             pre_node = graph[pre_node.inputs[0]]
         matmul_node = pre_node
         mul_node = graph.get_next_nodes(matmul_node.name)[0]
