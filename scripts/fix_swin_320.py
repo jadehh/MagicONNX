@@ -1,6 +1,13 @@
 import sys
 import numpy as np
 from magiconnx import OnnxGraph
+from magiconnx.optimize.optimizer_manager import OptimizerManager
+
+
+def optimize(graph):
+    optimizer_manager = OptimizerManager(graph)
+    optimized_graph = optimizer_manager.apply()
+    return optimized_graph
 
 
 def fold_exp(graph):
@@ -81,6 +88,7 @@ def reconnect_mul_add(graph):
 
 if __name__ == '__main__':
     onnx_graph = OnnxGraph(sys.argv[1])
+    onnx_graph = optimize(onnx_graph)
     fold_exp(onnx_graph)
     merge_add(onnx_graph)
     reconnect_mul_add(onnx_graph)
