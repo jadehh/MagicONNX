@@ -39,6 +39,15 @@ class BertBigKernelOptimizer(BaseOptimizer):
                 mul_num = temp_num
                 last_mul_name = mul_name
 
+        # check pattern: div->mul->add
+        last_mul_node = self._graph[last_mul_name]
+        pre_div_node = self._graph[last_mul_node.inputs[0]]
+        next_node = self._graph.get_next_nodes(last_mul_name)[0]
+        if pre_div_node.op_type != "Div" or \
+           next_node.op_type != "Add":
+            print("[Error] Pattern not match for {}: div->mul->add".format(last_mul_name))
+            return False
+
         init_name = 'Reshape_last_shape'
         init = self._graph.add_initializer(init_name, np.array([-1, seq, HIDDEN_NUM]))
         inserted_node = self._graph.add_node(
@@ -47,6 +56,7 @@ class BertBigKernelOptimizer(BaseOptimizer):
         )
         self._graph.insert_node(last_mul_name, inserted_node)
         inserted_node.inputs.append(init_name)
+        return True
 
     def fix_reshape_node(self, node_list):
         for idx, node_name in enumerate(node_list):
@@ -88,7 +98,7 @@ class BertBigKernelOptimizer(BaseOptimizer):
         for idx in range(3):
             next_node = self._graph.get_next_nodes(next_node.name)[0]
         assert next_node.op_type == "Transpose", \
-            "Pattern not match: matmul->add->reshape->transpose"
+            "[Warning] Pattern not match for {}: matmul->add->reshape->transpose".format(start_node_name)
         return next_node.name
 
     def find_reshape_node(self, start_node_name):
@@ -97,7 +107,7 @@ class BertBigKernelOptimizer(BaseOptimizer):
         for idx in range(7):
             next_node = self._graph.get_next_nodes(next_node.name)[0]
         assert next_node.op_type == "Reshape", \
-            "Pattern not match: transpose->matmul->div->add->softmax->matmul->transpose->reshape"
+            "[Warning] Pattern not match for {}: transpose->matmul->div->add->softmax->matmul->transpose->reshape".format(start_node_name)
         return next_node.name
 
     def find_div_node(self, start_node_name):
@@ -106,7 +116,14 @@ class BertBigKernelOptimizer(BaseOptimizer):
         for idx in range(2):
             next_node = self._graph.get_next_nodes(next_node.name)[0]
         assert next_node.op_type == "Div", \
-            "Pattern not match: transpose->matmul->div"
+            "[Warning] Pattern not match for {}: transpose->matmul->div".format(start_node_name)
+        return next_node.name
+
+    def find_add_node(self, start_node_name):
+        # pattern: div->add
+        next_node = self._graph.get_next_nodes(start_node_name)[0]
+        assert next_node.op_type == "Add", \
+            "[Warning] Pattern not match for {}: div->add".format(start_node_name)
         return next_node.name
 
     def get_bigkernel_part(self):
@@ -114,6 +131,7 @@ class BertBigKernelOptimizer(BaseOptimizer):
         nodes_info = {
             "Mul": [],
             "Reshape": [],
+            "Add": [],
             "Transpose": [],
             "Div": []
         }
@@ -136,43 +154,64 @@ class BertBigKernelOptimizer(BaseOptimizer):
                 continue
 
             nodes_info['Mul'].append(mul_name)
-            transpose_node_name = self.find_transpose_node(kernel_start_mul2.name)
-            nodes_info['Transpose'].append(transpose_node_name)
-            nodes_info['Reshape'].append(self.find_reshape_node(transpose_node_name))
-            nodes_info['Div'].append(self.find_div_node(transpose_node_name))
-
+            try:
+                transpose_node_name = self.find_transpose_node(kernel_start_mul2.name)
+                nodes_info['Transpose'].append(transpose_node_name)
+                nodes_info['Reshape'].append(self.find_reshape_node(transpose_node_name))
+                nodes_info['Div'].append(self.find_div_node(transpose_node_name))
+                nodes_info['Add'].append(self.find_add_node(nodes_info.get('Div')[-1]))
+            except Exception as e:
+                print(e)
+                continue
             with_kernel = True
         return with_kernel, nodes_info
 
-    def broadcast_input_mask(self):
-        def get_next_mul_node(input_node, max_depth=20):
-            next_node = input_node
-            cur_depth = 1
-            while next_node.op_type != "Mul" and cur_depth < max_depth:
-                next_node = self._graph.get_next_nodes(next_node.name)[0]
-                cur_depth += 1
-            return next_node
+    def broadcast_input_mask(self, start_node_names):
+        pre_node_dic = dict()
+        for start_node_name in start_node_names:
+            pre_node = None
+            start_node = self._graph[start_node_name]
+            # get specific pre node along attention mask input branch
+            for input_name in start_node.inputs:
+                input_node = self._graph[input_name]
+                if input_node.op_type == "Mul":
+                    input1 = self._graph[input_node.inputs[0]]
+                    input2 = self._graph[input_node.inputs[1]]
+                    input_init = input1 if input1.op_type == "Initializer" else input2
+                    if input_init.value < 0:
+                        pre_node = input_node
+            if pre_node is None:
+                return False
+            if pre_node.name not in pre_node_dic:
+                pre_node_dic[pre_node.name] = {}
+            pre_node_dic[pre_node.name][start_node_name] = 1
 
-        for input_name in self._graph.inputs:
-            input_node = self._graph[input_name]
-            next_mul_node = get_next_mul_node(input_node)
-            if next_mul_node.op_type != "Mul":
-                continue
-            if len(self._graph.get_next_nodes(next_mul_node.name)) > 2:
-                # broadcast dim2 for input mask node
+        # build expand value initializer
+        input_node = self._graph[self._graph.inputs[0]]
+        input_shape = BertBigKernelOptimizer.convert_str2numlist(input_node.shape)
+        assert len(input_shape) == 2, 'input shape: [batch_size, seq]'
+        expand_value = [input_shape[0], 1, input_shape[1], input_shape[1]]
+        expand_init = self._graph.add_initializer(
+            "Expand_mask_expand_shape",
+            np.array(expand_value)
+        )
+
+        # insert expand node before start node
+        for pre_node_name in pre_node_dic:
+            pre_node = self._graph[pre_node_name]
+            assert len(pre_node.outputs) == 1
+            for start_node_name in pre_node_dic[pre_node_name]:
                 inserted_node = self._graph.add_node(
-                    'Expand_mask_input',
-                    'Expand'
+                    "Expand_before_{}".format(start_node_name),
+                    "Expand",
+                    inputs=[pre_node.outputs[0]],
+                    outputs=["Expand_before_{}_output".format(start_node_name)]
                 )
-                self._graph.insert_node(next_mul_node.name, inserted_node, mode='before')
-                input_shape = BertBigKernelOptimizer.convert_str2numlist(input_node.shape)
-                assert len(input_shape) == 2, 'input mask shape: [batch_size, seq]'
-                expand_value = [input_shape[0], 1, input_shape[1], input_shape[1]]
-                expand_init = self._graph.add_initializer(
-                    'Expand_mask_expand_shape',
-                    np.array(expand_value))
-                inserted_node.inputs.append('Expand_mask_expand_shape')
-                break
+                start_node = self._graph[start_node_name]
+                input_idx = pre_node_dic[pre_node_name][start_node_name]
+                start_node.inputs[input_idx] = "Expand_before_{}_output".format(start_node_name)
+                inserted_node.inputs.append("Expand_mask_expand_shape")
+        return True
 
     def optimize(self, graph):
         self._graph = graph
@@ -188,8 +227,10 @@ class BertBigKernelOptimizer(BaseOptimizer):
         self.fix_reshape_node(nodes_info.get('Reshape'))
         self.modify_transpose_node(nodes_info.get('Transpose'))
         self.modify_div_node(nodes_info.get('Div'))
-        self.insert_last_reshape(input_seq[-1])
-        self.broadcast_input_mask()
+        with_kernel &= self.insert_last_reshape(input_seq[-1])
+        with_kernel &= self.broadcast_input_mask(nodes_info.get('Add'))
+        if not with_kernel:
+            return graph, False
         return self._graph, with_kernel
 
     @staticmethod
