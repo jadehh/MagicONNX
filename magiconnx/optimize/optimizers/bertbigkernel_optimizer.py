@@ -2,10 +2,7 @@ import numpy as np
 import re
 from ..base_optimizer import BaseOptimizer
 
-
-HIDDEN_NUM = 768
 DIV_CONST = 8
-
 
 class BertBigKernelOptimizer(BaseOptimizer):
     """
@@ -16,11 +13,11 @@ class BertBigKernelOptimizer(BaseOptimizer):
                   4. fix div node
                   5. broadcast input value for input mask node
     """
-    def insert_reshape_node(self, node_list):
+    def insert_reshape_node(self, node_list, hidden_num):
         for idx, node_name in enumerate(node_list):
             init_name = 'Reshape_1_{}_shape'.format(idx)
             init = self._graph.add_initializer(init_name,
-                                               np.array([-1, HIDDEN_NUM]))
+                                               np.array([-1, hidden_num]))
             inserted_node = self._graph.add_node(
                 'Reshape_1_{}'.format(idx),
                 'Reshape'
@@ -28,7 +25,7 @@ class BertBigKernelOptimizer(BaseOptimizer):
             self._graph.insert_node(node_name, inserted_node)
             inserted_node.inputs.append(init_name)
 
-    def insert_last_reshape(self, seq):
+    def insert_last_reshape(self, seq, hidden_num):
         # get last mul node
         mul_num = -1
         last_mul_name = ''
@@ -49,7 +46,7 @@ class BertBigKernelOptimizer(BaseOptimizer):
             return False
 
         init_name = 'Reshape_last_shape'
-        init = self._graph.add_initializer(init_name, np.array([-1, seq, HIDDEN_NUM]))
+        init = self._graph.add_initializer(init_name, np.array([-1, seq, hidden_num]))
         inserted_node = self._graph.add_node(
             'Reshape_last',
             'Reshape'
@@ -128,6 +125,7 @@ class BertBigKernelOptimizer(BaseOptimizer):
 
     def get_bigkernel_part(self):
         with_kernel = False
+        hidden_num = -1
         nodes_info = {
             "Mul": [],
             "Reshape": [],
@@ -164,7 +162,8 @@ class BertBigKernelOptimizer(BaseOptimizer):
                 print(e)
                 continue
             with_kernel = True
-        return with_kernel, nodes_info
+            hidden_num = self._graph[mul_node.inputs[1]].value.shape[-1]
+        return with_kernel, nodes_info, hidden_num
 
     def broadcast_input_mask(self, start_node_names):
         pre_node_dic = dict()
@@ -216,18 +215,18 @@ class BertBigKernelOptimizer(BaseOptimizer):
     def optimize(self, graph):
         self._graph = graph
         try:
-            with_kernel, nodes_info = self.get_bigkernel_part()
+            with_kernel, nodes_info, hidden_num = self.get_bigkernel_part()
         except:
             return graph, False
         if not with_kernel:
             return self._graph, with_kernel
         input_shape = self._graph[self._graph.inputs[0]].shape
         input_seq = BertBigKernelOptimizer.convert_str2numlist(input_shape)
-        self.insert_reshape_node(nodes_info.get('Mul'))
+        self.insert_reshape_node(nodes_info.get('Mul'), hidden_num)
         self.fix_reshape_node(nodes_info.get('Reshape'))
         self.modify_transpose_node(nodes_info.get('Transpose'))
         self.modify_div_node(nodes_info.get('Div'))
-        with_kernel &= self.insert_last_reshape(input_seq[-1])
+        with_kernel &= self.insert_last_reshape(input_seq[-1], hidden_num)
         with_kernel &= self.broadcast_input_mask(nodes_info.get('Add'))
         if not with_kernel:
             return graph, False
