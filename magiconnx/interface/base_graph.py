@@ -14,7 +14,7 @@ class BaseGraph(ABC):
         pass
 
     @abstractmethod
-    def add_node(self, name, op_type, attrs=dict()):
+    def add_node(self, name, op_type, attrs=None):
         pass
 
     @abstractmethod
@@ -43,7 +43,7 @@ class BaseGraph(ABC):
     #######             Delete              #######
     ###############################################
     @abstractmethod
-    def del_node(self, name, maps={0: 0}, auto_connection=True):
+    def del_node(self, name, maps=None, auto_connection=True):
         pass
 
     ###############################################
@@ -81,7 +81,7 @@ class BaseGraph(ABC):
         pass
 
     @abstractmethod
-    def dump(self, data, path='dump', outputs=[]):
+    def dump(self, data, path='dump', outputs=None):
         pass
 
     @abstractmethod
