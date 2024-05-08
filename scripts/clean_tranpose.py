@@ -61,7 +61,8 @@ def split_three_parts(graph, start_matmul):
             node_list.append(added_node)
         return node_list
 
-    def duplicate_transpose_nodes(base_node, perm=[0, 2, 1, 3], num=3):
+    def duplicate_transpose_nodes(base_node, perm=None, num=3):
+        perm = [0, 2, 1, 3] if perm is None else perm
         node_list = []
         for idx in range(num):
             node = graph._model.graph.node.add()

@@ -19,7 +19,8 @@ class OptimizerManager():
     """
     @typeassert(cfg_path=str)
     @typeassert(optimizers=list)
-    def __init__(self, graph, cfg_path='', optimizers=[], mode='safe'):
+    def __init__(self, graph, cfg_path='', optimizers=None, mode='safe'):
+        optimizers = [] if optimizers is None else optimizers
         self.onnx_graph = graph
         self.mode = mode
         self.cfg_path = cfg_path

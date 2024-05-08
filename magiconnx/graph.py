@@ -77,7 +77,10 @@ class OnnxGraph(BaseGraph):
         return init
 
     @typeassert(name=str, op_type=str, attrs=dict, inputs=list, outputs=list)
-    def add_node(self, name, op_type, attrs={}, inputs=['Null'], outputs=['Null']):
+    def add_node(self, name, op_type, attrs=None, inputs=None, outputs=None):
+        attrs = {} if attrs is None else attrs
+        inputs = ['Null'] if inputs is None else inputs
+        outputs = ['Null'] if outputs is None else outputs
         assert name not in self._all_ops_name, f'The ({name}) has been existed in graph, please change the node.name.'
         node = self._model.graph.node.add()
         node.CopyFrom(helper.make_node(op_type=op_type,
@@ -178,7 +181,8 @@ class OnnxGraph(BaseGraph):
     #######             Delete              #######
     ###############################################
     @typeassert(name=str, maps=dict, auto_connection=bool)
-    def del_node(self, name, maps={0: 0}, auto_connection=True):
+    def del_node(self, name, maps=None, auto_connection=True):
+        maps = {0: 0} if maps is None else maps
         assert name in self._all_ops_name, f'The ({name}) is not exists in graph, please check it!'
         src = self._all_ops_map.pop(name)
         if not auto_connection:
@@ -283,7 +287,8 @@ class OnnxGraph(BaseGraph):
         return ret
 
     @typeassert(data=(np.ndarray, list), path=str, outputs=(tuple, list))
-    def dump(self, data, path='dump', outputs=[]):
+    def dump(self, data, path='dump', outputs=None):
+        outputs = [] if outputs is None else outputs
         try:
             from skl2onnx.helpers.onnx_helper import (select_model_inputs_outputs,
                                                       enumerate_model_node_outputs)
